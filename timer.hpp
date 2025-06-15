@@ -12,6 +12,7 @@ struct Timer : Pollable {
   using StopFunction = std::function<void(Any *data)>;
   using HandleExpirationFunction = std::function<void(Any *data)>;
   using CleanupFunction = std::function<void(Any *data)>;
+  using IsInitializedFunction = std::function<bool(Any *data)>;
 
   Any data;
 
@@ -21,6 +22,7 @@ struct Timer : Pollable {
   StopFunction stopFunction;
   HandleExpirationFunction handleExpirationFunction;
   CleanupFunction cleanupFunction;
+  IsInitializedFunction isInitializedFunction;
 
   bool isInterval;
   uint32_t intervalMs;
@@ -28,15 +30,16 @@ struct Timer : Pollable {
   // Constructor
   Timer();
 
-  // Public methods
-  bool init(PollableType timerType = PollableType::TIMER);
-  void cleanup();
   bool setTimeout(uint32_t milliseconds, Callback cb);
   bool setInterval(uint32_t milliseconds, Callback cb);
   void stop();
+
+  // Internal methods (called by poller)
   void handleExpiration();
 
 private:
+  bool start();
+
   void setupPlatformTimer();
   void resetToDefaults();
 };

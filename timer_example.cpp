@@ -15,12 +15,6 @@ int main() {
     return 1;
   }
 
-  // Initialize the timers
-  if (!intervalTimer->init() || !timeoutTimer->init()) {
-    std::cerr << "Failed to initialize timers\n";
-    return 1;
-  }
-
   // Counter to track interval timer firings
   static int intervalCounter = 0;
 
@@ -30,7 +24,7 @@ int main() {
         std::cout << "Interval timer fired! Count: " << intervalCounter
                   << std::endl;
       })) {
-    std::cerr << "Failed to start interval timer\n";
+    std::cerr << "Failed to start interval timer" << std::endl;
     return 1;
   }
 

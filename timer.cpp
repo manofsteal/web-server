@@ -19,6 +19,8 @@ struct LinuxTimerData {
 // ============================================================================
 
 Timer::Timer() {
+
+  type = PollableType::TIMER;
   // Initialize member variables
   isInterval = false;
   intervalMs = 0;
@@ -32,37 +34,52 @@ Timer::Timer() {
   stopFunction = [](Any *data) {};
   handleExpirationFunction = [](Any *data) {};
   cleanupFunction = [](Any *data) {};
+  isInitializedFunction = [](Any *data) -> bool { return false; };
 
   // Initialize platform-specific data and functions
   setupPlatformTimer();
 }
 
-bool Timer::init(PollableType timerType) {
-  type = timerType;
-  id = 0;
-  file_descriptor = -1;
+bool Timer::start() {
+  // Initialize if not already done - use platform-agnostic check
+  if (!isInitializedFunction(&data)) {
+    type = PollableType::TIMER;
+    // Don't reset file_descriptor here, let initFunction set it
 
-  // Call platform-specific init function
-  return initFunction(&data);
+    // Call platform-specific init function
+    if (!initFunction(&data)) {
+      return false;
+    }
+  }
+
+  // Start the timer with configured parameters
+  return startFunction(&data, intervalMs);
+}
+
+void Timer::stop() {
+  // Stop the timer
+  stopFunction(&data);
+
+  // Platform-specific cleanup
+  cleanupFunction(&data);
+
+  // Reset all function pointers to defaults
+  resetToDefaults();
 }
 
 bool Timer::setTimeout(uint32_t milliseconds, Callback cb) {
   callback = cb;
-  isInterval = false;
   intervalMs = milliseconds;
-
-  return startFunction(&data, milliseconds);
+  isInterval = false;
+  return start();
 }
 
 bool Timer::setInterval(uint32_t milliseconds, Callback cb) {
   callback = cb;
-  isInterval = true;
   intervalMs = milliseconds;
-
-  return startFunction(&data, milliseconds);
+  isInterval = true;
+  return start();
 }
-
-void Timer::stop() { stopFunction(&data); }
 
 void Timer::handleExpiration() {
   handleExpirationFunction(&data);
@@ -87,6 +104,7 @@ void Timer::setupPlatformTimer() {
     LinuxTimerData *linux_data = data->asA<LinuxTimerData>();
 
     linux_data->timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+
     if (linux_data->timer_fd < 0) {
       return false;
     }
@@ -94,6 +112,11 @@ void Timer::setupPlatformTimer() {
     this->file_descriptor = linux_data->timer_fd;
     this->type = PollableType::TIMER;
     return true;
+  };
+
+  isInitializedFunction = [](Any *data) -> bool {
+    LinuxTimerData *linux_data = data->asA<LinuxTimerData>();
+    return linux_data->timer_fd != -1;
   };
 
   startFunction = [](Any *data, uint32_t milliseconds) -> bool {
@@ -146,17 +169,6 @@ void Timer::setupPlatformTimer() {
 #endif
 }
 
-void Timer::cleanup() {
-  // Stop the timer before cleanup
-  stop();
-
-  // Platform-specific cleanup
-  cleanupFunction(&data);
-
-  // Reset all function pointers to defaults
-  resetToDefaults();
-}
-
 void Timer::resetToDefaults() {
   callback = [](Any *data) {};
   initFunction = [](Any *data) -> bool { return true; };
@@ -166,5 +178,6 @@ void Timer::resetToDefaults() {
   stopFunction = [](Any *data) {};
   handleExpirationFunction = [](Any *data) {};
   cleanupFunction = [](Any *data) {};
+  isInitializedFunction = [](Any *data) -> bool { return false; };
   file_descriptor = -1;
 }
