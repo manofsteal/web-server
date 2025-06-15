@@ -1,29 +1,22 @@
 #pragma once
-#include <cstdint>
-#include <map>
+#include "listener.hpp"
 #include "pollable.hpp"
 #include "pollable_pool.hpp"
-#include "timer.hpp"
 #include "socket.hpp"
-#include "listener.hpp"
-
-
+#include "timer.hpp"
+#include <cstdint>
+#include <map>
 
 struct PollablePoolManager {
+  void cleanup() {
+    timers.items.clear();
+    sockets.items.clear();
+    listeners.items.clear();
+  }
 
-    bool init() {
-        return true;
-    }
+  PollableIDManager id_manager;
 
-    void cleanup() {
-        timers.items.clear();
-        sockets.items.clear();
-        listeners.items.clear();
-    }
-
-    PollableIDManager id_manager;
-
-    PollablePool<Timer> timers;
-    PollablePool<Socket> sockets;
-    PollablePool<Listener> listeners;
-}; 
+  PollablePool<Timer> timers;
+  PollablePool<Socket> sockets;
+  PollablePool<Listener> listeners;
+};

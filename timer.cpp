@@ -18,9 +18,7 @@ struct LinuxTimerData {
 // Timer implementation
 // ============================================================================
 
-Timer::Timer() {
-
-  type = PollableType::TIMER;
+Timer::Timer() : Pollable(PollableType::TIMER) {
   // Initialize member variables
   isInterval = false;
   intervalMs = 0;

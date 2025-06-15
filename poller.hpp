@@ -19,12 +19,12 @@ struct Poller {
     short events; // poll events (POLLIN, POLLOUT, etc.)
     std::function<void()> callback;
 
-    bool init(Pollable *p, short ev, std::function<void()> cb) {
-      pollable = p;
-      events = ev;
-      callback = cb;
-      return true;
-    }
+    // Constructor to replace init()
+    PollEntry(Pollable *p, short ev, std::function<void()> cb)
+        : pollable(p), events(ev), callback(std::move(cb)) {}
+
+    // Default constructor for map usage
+    PollEntry() : pollable(nullptr), events(0) {}
 
     void cleanup() {
       pollable = nullptr;

@@ -34,60 +34,57 @@ void Poller::addSocket(Socket *socket) {
   if (!socket)
     return;
 
-  // Create poll entry - handle socket I/O
-  PollEntry entry;
-  entry.init(socket, POLLIN | POLLOUT, [this, socket]() {
-    // Delegate socket I/O handling to executor thread
-    executor.submit([socket]() {
-      // Handle incoming data
-      if (socket->file_descriptor >= 0) {
-        char buffer[1024];
-        ssize_t bytes_read =
-            read(socket->file_descriptor, buffer, sizeof(buffer));
-        if (bytes_read > 0) {
-          std::vector<char> data(buffer, buffer + bytes_read);
-          if (socket->on_data) {
-            socket->on_data(*socket, data);
-          }
-        }
+  // Create poll entry using constructor - handle socket I/O
+  pollEntries[socket->id] =
+      PollEntry(socket, POLLIN | POLLOUT, [this, socket]() {
+        // Delegate socket I/O handling to executor thread
+        executor.submit([socket]() {
+          // Handle incoming data
+          if (socket->file_descriptor >= 0) {
+            char buffer[1024];
+            ssize_t bytes_read =
+                read(socket->file_descriptor, buffer, sizeof(buffer));
+            if (bytes_read > 0) {
+              std::vector<char> data(buffer, buffer + bytes_read);
+              if (socket->on_data) {
+                socket->on_data(*socket, data);
+              }
+            }
 
-        // Handle outgoing data
-        if (!socket->write_buffer.empty()) {
-          ssize_t bytes_written =
-              write(socket->file_descriptor, socket->write_buffer.data(),
-                    socket->write_buffer.size());
-          if (bytes_written > 0) {
-            socket->write_buffer.erase(socket->write_buffer.begin(),
-                                       socket->write_buffer.begin() +
-                                           bytes_written);
+            // Handle outgoing data
+            if (!socket->write_buffer.empty()) {
+              ssize_t bytes_written =
+                  write(socket->file_descriptor, socket->write_buffer.data(),
+                        socket->write_buffer.size());
+              if (bytes_written > 0) {
+                socket->write_buffer.erase(socket->write_buffer.begin(),
+                                           socket->write_buffer.begin() +
+                                               bytes_written);
+              }
+            }
           }
-        }
-      }
-    });
-  });
-  pollEntries[socket->id] = entry;
+        });
+      });
 }
 
 void Poller::addTimer(Timer *timer) {
   if (!timer)
     return;
 
-  // Create poll entry - when timer fd is ready, delegate to executor
-  PollEntry entry;
-  entry.init(timer, POLLIN, [this, timer]() {
+  // Create poll entry using constructor - when timer fd is ready, delegate to
+  // executor
+  pollEntries[timer->id] = PollEntry(timer, POLLIN, [this, timer]() {
     // Delegate timer handling to executor thread
     executor.submit([timer]() { timer->handleExpiration(); });
   });
-  pollEntries[timer->id] = entry;
 }
 
 void Poller::addListener(Listener *listener) {
   if (!listener)
     return;
 
-  // Create poll entry - handle new connections
-  PollEntry entry;
-  entry.init(listener, POLLIN, [this, listener]() {
+  // Create poll entry using constructor - handle new connections
+  pollEntries[listener->id] = PollEntry(listener, POLLIN, [this, listener]() {
     // Delegate connection acceptance to executor thread
     executor.submit([this, listener]() {
       if (listener->file_descriptor >= 0) {
@@ -110,7 +107,6 @@ void Poller::addListener(Listener *listener) {
       }
     });
   });
-  pollEntries[listener->id] = entry;
 }
 
 void Poller::remove(PollableID id) {

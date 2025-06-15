@@ -3,31 +3,22 @@
 
 using PollableID = uint32_t;
 
-enum class PollableType {
-    SOCKET,
-    LISTENER,
-    TIMER
-};
+enum class PollableType { SOCKET, LISTENER, TIMER };
 
 struct Pollable {
-    PollableType type;
-    PollableID id;
-    int file_descriptor;
+  PollableType type;
+  PollableID id;
+  int file_descriptor;
 
-    bool init(PollableType t) {
-        type = t;
-        id = 0;
-        file_descriptor = -1;
-        return true;
-    }
-}; 
+  // Constructor to replace init()
+  explicit Pollable(PollableType t) : type(t), id(0), file_descriptor(-1) {}
 
-
+  // Default constructor for cases where type is set later
+  Pollable() : type(PollableType::SOCKET), id(0), file_descriptor(-1) {}
+};
 
 class PollableIDManager {
 public:
-    uint32_t next_id = 0;
-    PollableID allocate() {
-        return next_id++;
-    }
-}; 
+  uint32_t next_id = 0;
+  PollableID allocate() { return next_id++; }
+};
