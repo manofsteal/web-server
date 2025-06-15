@@ -1,6 +1,9 @@
 #include "poller.hpp"
 
 void Poller::cleanup() {
+  // Stop executor first
+  executor.stop();
+
   for (auto &[id, entry] : pollEntries) {
     entry.cleanup();
   }
@@ -33,31 +36,34 @@ void Poller::addSocket(Socket *socket) {
 
   // Create poll entry - handle socket I/O
   PollEntry entry;
-  entry.init(socket, POLLIN | POLLOUT, [socket]() {
-    // Handle incoming data
-    if (socket->file_descriptor >= 0) {
-      char buffer[1024];
-      ssize_t bytes_read =
-          read(socket->file_descriptor, buffer, sizeof(buffer));
-      if (bytes_read > 0) {
-        std::vector<char> data(buffer, buffer + bytes_read);
-        if (socket->on_data) {
-          socket->on_data(*socket, data);
+  entry.init(socket, POLLIN | POLLOUT, [this, socket]() {
+    // Delegate socket I/O handling to executor thread
+    executor.submit([socket]() {
+      // Handle incoming data
+      if (socket->file_descriptor >= 0) {
+        char buffer[1024];
+        ssize_t bytes_read =
+            read(socket->file_descriptor, buffer, sizeof(buffer));
+        if (bytes_read > 0) {
+          std::vector<char> data(buffer, buffer + bytes_read);
+          if (socket->on_data) {
+            socket->on_data(*socket, data);
+          }
         }
-      }
 
-      // Handle outgoing data
-      if (!socket->write_buffer.empty()) {
-        ssize_t bytes_written =
-            write(socket->file_descriptor, socket->write_buffer.data(),
-                  socket->write_buffer.size());
-        if (bytes_written > 0) {
-          socket->write_buffer.erase(socket->write_buffer.begin(),
-                                     socket->write_buffer.begin() +
-                                         bytes_written);
+        // Handle outgoing data
+        if (!socket->write_buffer.empty()) {
+          ssize_t bytes_written =
+              write(socket->file_descriptor, socket->write_buffer.data(),
+                    socket->write_buffer.size());
+          if (bytes_written > 0) {
+            socket->write_buffer.erase(socket->write_buffer.begin(),
+                                       socket->write_buffer.begin() +
+                                           bytes_written);
+          }
         }
       }
-    }
+    });
   });
   pollEntries[socket->id] = entry;
 }
@@ -66,9 +72,12 @@ void Poller::addTimer(Timer *timer) {
   if (!timer)
     return;
 
-  // Create poll entry - when timer fd is ready, call handleExpiration
+  // Create poll entry - when timer fd is ready, delegate to executor
   PollEntry entry;
-  entry.init(timer, POLLIN, [timer]() { timer->handleExpiration(); });
+  entry.init(timer, POLLIN, [this, timer]() {
+    // Delegate timer handling to executor thread
+    executor.submit([timer]() { timer->handleExpiration(); });
+  });
   pollEntries[timer->id] = entry;
 }
 
@@ -79,24 +88,27 @@ void Poller::addListener(Listener *listener) {
   // Create poll entry - handle new connections
   PollEntry entry;
   entry.init(listener, POLLIN, [this, listener]() {
-    if (listener->file_descriptor >= 0) {
-      struct sockaddr_in client_addr;
-      socklen_t client_len = sizeof(client_addr);
-      int client_fd = accept(listener->file_descriptor,
-                             (struct sockaddr *)&client_addr, &client_len);
+    // Delegate connection acceptance to executor thread
+    executor.submit([this, listener]() {
+      if (listener->file_descriptor >= 0) {
+        struct sockaddr_in client_addr;
+        socklen_t client_len = sizeof(client_addr);
+        int client_fd = accept(listener->file_descriptor,
+                               (struct sockaddr *)&client_addr, &client_len);
 
-      if (client_fd >= 0) {
-        // Create new socket for the client
-        Socket *client_socket = createSocket();
-        client_socket->file_descriptor = client_fd;
-        client_socket->remote_addr = inet_ntoa(client_addr.sin_addr);
-        client_socket->remote_port = ntohs(client_addr.sin_port);
+        if (client_fd >= 0) {
+          // Create new socket for the client
+          Socket *client_socket = createSocket();
+          client_socket->file_descriptor = client_fd;
+          client_socket->remote_addr = inet_ntoa(client_addr.sin_addr);
+          client_socket->remote_port = ntohs(client_addr.sin_port);
 
-        if (listener->on_accept) {
-          listener->on_accept(client_socket);
+          if (listener->on_accept) {
+            listener->on_accept(client_socket);
+          }
         }
       }
-    }
+    });
   });
   pollEntries[listener->id] = entry;
 }
@@ -115,11 +127,20 @@ void Poller::remove(PollableID id) {
 }
 
 void Poller::run() {
+  // Start the executor thread pool
+  if (!executor.start()) {
+    return; // Failed to start executor
+  }
+
   running = true;
   while (running) {
-    // Construct pollFds from poll entries
-    pollFds.clear();
 
+    // Construct pollFds vector here for each poll() call to ensure:
+    // 1. We capture any new pollables added since last iteration
+    // 2. We exclude any pollables that were removed or have invalid file
+    // descriptors
+    // 3. The pollFds array stays in sync with current pollEntries state
+    pollFds.clear();
     for (const auto &[id, entry] : pollEntries) {
       if (entry.pollable && entry.pollable->file_descriptor >= 0) {
         pollfd pfd;
@@ -146,10 +167,11 @@ void Poller::run() {
     for (const auto &pfd : pollFds) {
       if (pfd.revents & pfd.events) {
         // Find the corresponding poll entry and call its callback
+        // The callback will delegate to executor, so this is fast and safe
         for (const auto &[id, entry] : pollEntries) {
           if (entry.pollable && entry.pollable->file_descriptor == pfd.fd) {
             if (entry.callback) {
-              entry.callback();
+              entry.callback(); // This just submits to executor, doesn't block
             }
             break;
           }
@@ -159,4 +181,7 @@ void Poller::run() {
   }
 }
 
-void Poller::stop() { running = false; }
+void Poller::stop() {
+  running = false;
+  // Executor will be stopped in cleanup()
+}
