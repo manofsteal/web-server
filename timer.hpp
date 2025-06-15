@@ -7,22 +7,18 @@
 
 struct Timer : Pollable {
   using Callback = std::function<void(Any *data)>;
-  using InitFunction = std::function<bool(Any *data)>;
   using StartFunction = std::function<bool(Any *data, uint32_t milliseconds)>;
   using StopFunction = std::function<void(Any *data)>;
   using HandleExpirationFunction = std::function<void(Any *data)>;
   using CleanupFunction = std::function<void(Any *data)>;
-  using IsInitializedFunction = std::function<bool(Any *data)>;
 
   Any data;
 
   Callback callback;
-  InitFunction initFunction;
   StartFunction startFunction;
   StopFunction stopFunction;
   HandleExpirationFunction handleExpirationFunction;
   CleanupFunction cleanupFunction;
-  IsInitializedFunction isInitializedFunction;
 
   bool isInterval;
   uint32_t intervalMs;

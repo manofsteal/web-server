@@ -27,32 +27,19 @@ Timer::Timer() {
 
   // Initialize function pointers to defaults
   callback = [](Any *data) {};
-  initFunction = [](Any *data) -> bool { return true; };
   startFunction = [](Any *data, uint32_t milliseconds) -> bool {
     return false;
   };
   stopFunction = [](Any *data) {};
   handleExpirationFunction = [](Any *data) {};
   cleanupFunction = [](Any *data) {};
-  isInitializedFunction = [](Any *data) -> bool { return false; };
 
   // Initialize platform-specific data and functions
   setupPlatformTimer();
 }
 
 bool Timer::start() {
-  // Initialize if not already done - use platform-agnostic check
-  if (!isInitializedFunction(&data)) {
-    type = PollableType::TIMER;
-    // Don't reset file_descriptor here, let initFunction set it
-
-    // Call platform-specific init function
-    if (!initFunction(&data)) {
-      return false;
-    }
-  }
-
-  // Start the timer with configured parameters
+  // Just call startFunction - it will handle initialization and starting
   return startFunction(&data, intervalMs);
 }
 
@@ -100,27 +87,22 @@ void Timer::setupPlatformTimer() {
   linux_data->timer_fd = -1;
 
   // Set up platform-specific function pointers
-  initFunction = [this](Any *data) -> bool {
+  startFunction = [this](Any *data, uint32_t milliseconds) -> bool {
     LinuxTimerData *linux_data = data->asA<LinuxTimerData>();
 
-    linux_data->timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+    // Initialize if not already done
+    if (linux_data->timer_fd == -1) {
+      linux_data->timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
 
-    if (linux_data->timer_fd < 0) {
-      return false;
+      if (linux_data->timer_fd < 0) {
+        return false;
+      }
+
+      this->file_descriptor = linux_data->timer_fd;
+      this->type = PollableType::TIMER;
     }
 
-    this->file_descriptor = linux_data->timer_fd;
-    this->type = PollableType::TIMER;
-    return true;
-  };
-
-  isInitializedFunction = [](Any *data) -> bool {
-    LinuxTimerData *linux_data = data->asA<LinuxTimerData>();
-    return linux_data->timer_fd != -1;
-  };
-
-  startFunction = [](Any *data, uint32_t milliseconds) -> bool {
-    LinuxTimerData *linux_data = data->asA<LinuxTimerData>();
+    // Start the timer
     if (linux_data->timer_fd < 0) {
       return false;
     }
@@ -171,13 +153,11 @@ void Timer::setupPlatformTimer() {
 
 void Timer::resetToDefaults() {
   callback = [](Any *data) {};
-  initFunction = [](Any *data) -> bool { return true; };
   startFunction = [](Any *data, uint32_t milliseconds) -> bool {
     return false;
   };
   stopFunction = [](Any *data) {};
   handleExpirationFunction = [](Any *data) {};
   cleanupFunction = [](Any *data) {};
-  isInitializedFunction = [](Any *data) -> bool { return false; };
   file_descriptor = -1;
 }
