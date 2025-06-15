@@ -1,0 +1,43 @@
+# Cursor Code Generation Rules
+
+# General Rules
+- No virtual functions
+- No constructors, use struct initialization
+- No exceptions, use return values for error handling
+- Use struct instead of class
+- All members should be public
+- Use C-style error handling (return values)
+- No inheritance except from base types (e.g., Pollable)
+- All function definitions must be placed in .cpp files, not in header files. Only function declarations and struct definitions are allowed in header files.
+
+
+
+
+# Naming Conventions
+- Struct names: PascalCase
+- Member variables: snake_case
+- Methods: camelCase
+- Constants: UPPER_SNAKE_CASE
+
+# Memory Management
+- No smart pointers
+- Manual memory management
+- Clear ownership semantics
+- Explicit cleanup methods
+
+# Error Handling
+- Return bool for success/failure
+- Return error codes where appropriate
+- No exceptions
+- No RAII
+
+# File Organization
+- One struct per header file
+- Include guards using #pragma once
+- Minimal includes
+- Forward declarations where possible
+
+# Documentation
+- Brief comments for public methods
+- No implementation comments
+- No class/struct documentation 
