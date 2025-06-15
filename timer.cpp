@@ -110,8 +110,14 @@ void Timer::setupPlatformTimer() {
     struct itimerspec timer_spec;
     memset(&timer_spec, 0, sizeof(timer_spec));
 
-    timer_spec.it_value.tv_sec = milliseconds / 1000;
-    timer_spec.it_value.tv_nsec = (milliseconds % 1000) * 1000000;
+    // Handle 0ms case - convert to 1ns since timerfd doesn't fire with 0/0
+    if (milliseconds == 0) {
+      timer_spec.it_value.tv_sec = 0;
+      timer_spec.it_value.tv_nsec = 1; // 1 nanosecond
+    } else {
+      timer_spec.it_value.tv_sec = milliseconds / 1000;
+      timer_spec.it_value.tv_nsec = (milliseconds % 1000) * 1000000;
+    }
     timer_spec.it_interval.tv_sec = 0;
     timer_spec.it_interval.tv_nsec = 0;
 
