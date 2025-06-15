@@ -11,62 +11,32 @@ struct Timer : Pollable {
   using StartFunction = std::function<bool(Any *data, uint32_t milliseconds)>;
   using StopFunction = std::function<void(Any *data)>;
   using HandleExpirationFunction = std::function<void(Any *data)>;
+  using CleanupFunction = std::function<void(Any *data)>;
 
   Any data;
 
-  Callback callback = [](Any *data) {};
-  InitFunction initFunction = [](Any *data) -> bool { return true; };
-  StartFunction startFunction = [](Any *data, uint32_t milliseconds) -> bool {
-    return false;
-  };
-  StopFunction stopFunction = [](Any *data) {};
-  HandleExpirationFunction handleExpirationFunction = [](Any *data) {};
+  Callback callback;
+  InitFunction initFunction;
+  StartFunction startFunction;
+  StopFunction stopFunction;
+  HandleExpirationFunction handleExpirationFunction;
+  CleanupFunction cleanupFunction;
 
-  bool isInterval = false;
-  uint32_t intervalMs = 0;
+  bool isInterval;
+  uint32_t intervalMs;
 
   // Constructor
   Timer();
 
-  bool init(PollableType timerType = PollableType::TIMER) {
-    type = timerType;
-    id = 0;
-    file_descriptor = -1;
-
-    // Call platform-specific init function
-    return initFunction(&data);
-  }
-
+  // Public methods
+  bool init(PollableType timerType = PollableType::TIMER);
   void cleanup();
+  bool setTimeout(uint32_t milliseconds, Callback cb);
+  bool setInterval(uint32_t milliseconds, Callback cb);
+  void stop();
+  void handleExpiration();
 
-  // Common timer APIs
-  bool setTimeout(uint32_t milliseconds, Callback cb) {
-    callback = cb;
-    isInterval = false;
-    intervalMs = milliseconds;
-
-    return startFunction(&data, milliseconds);
-  }
-
-  bool setInterval(uint32_t milliseconds, Callback cb) {
-    callback = cb;
-    isInterval = true;
-    intervalMs = milliseconds;
-
-    return startFunction(&data, milliseconds);
-  }
-
-  void stop() { stopFunction(&data); }
-
-  void handleExpiration() {
-    handleExpirationFunction(&data);
-
-    // Call user callback
-    callback(&data);
-
-    // For intervals, restart the timer
-    if (isInterval) {
-      startFunction(&data, intervalMs);
-    }
-  }
+private:
+  void setupPlatformTimer();
+  void resetToDefaults();
 };
