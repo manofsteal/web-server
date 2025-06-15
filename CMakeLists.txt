@@ -11,6 +11,7 @@ include_directories(.)
 # Common source files
 set(COMMON_SOURCES
     poller.cpp
+    timer.cpp
 )
 
 # Create timer example

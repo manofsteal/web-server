@@ -1,36 +1,62 @@
 #include "poller.hpp"
-#include <iostream>
 #include <chrono>
+#include <iostream>
 #include <thread>
 
 int main() {
-    Poller poller;
-    
-    // Create a timer using the poller factory (automatically added to poller)
-    Timer* timer1 = poller.createTimer();
-    if (!timer1) {
-        std::cerr << "Failed to create timer1\n";
-        return 1;
-    }
-    
-    // Use setTimeout API
-    if (!timer1->setTimeout(2000, []() {
-        std::cout << "Timer fired!\n";
-    })) {
-        std::cerr << "Failed to start timer1\n";
-        return 1;
-    }
+  Poller poller;
 
-    // Run for 5 seconds
-    std::thread run_thread([&poller]() {
-        poller.run();
-    });
+  // Create timers using the poller factory
+  Timer *intervalTimer = poller.createTimer();
+  Timer *timeoutTimer = poller.createTimer();
 
-    std::this_thread::sleep_for(std::chrono::seconds(5));
-    poller.stop();
-    run_thread.join();
-    
-    poller.cleanup();
+  if (!intervalTimer || !timeoutTimer) {
+    std::cerr << "Failed to create timers\n";
+    return 1;
+  }
 
-    return 0;
-} 
+  // Initialize the timers
+  if (!intervalTimer->init() || !timeoutTimer->init()) {
+    std::cerr << "Failed to initialize timers\n";
+    return 1;
+  }
+
+  // Counter to track interval timer firings
+  static int intervalCounter = 0;
+
+  // Set up interval timer (fires every 1 second)
+  if (!intervalTimer->setInterval(1000, [](Any *data) {
+        intervalCounter++;
+        std::cout << "Interval timer fired! Count: " << intervalCounter
+                  << std::endl;
+      })) {
+    std::cerr << "Failed to start interval timer\n";
+    return 1;
+  }
+
+  // Set up timeout timer (fires once after 3 seconds)
+  if (!timeoutTimer->setTimeout(3000, [](Any *data) {
+        std::cout << "Timeout timer fired after 3 seconds!" << std::endl;
+      })) {
+    std::cerr << "Failed to start timeout timer\n";
+    return 1;
+  }
+
+  std::cout << "Timers started:" << std::endl;
+  std::cout << "- Interval timer: fires every 1 second" << std::endl;
+  std::cout << "- Timeout timer: fires once after 3 seconds" << std::endl;
+  std::cout << "Running for 6 seconds..." << std::endl;
+
+  // Run for 6 seconds
+  std::thread run_thread([&poller]() { poller.run(); });
+
+  std::this_thread::sleep_for(std::chrono::seconds(6));
+  poller.stop();
+  run_thread.join();
+
+  poller.cleanup();
+
+  std::cout << "Timer test completed. Interval timer fired " << intervalCounter
+            << " times." << std::endl;
+  return 0;
+}
