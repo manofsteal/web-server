@@ -8,11 +8,7 @@
 #include <map>
 
 struct PollablePoolManager {
-  void cleanup() {
-    timers.items.clear();
-    sockets.items.clear();
-    listeners.items.clear();
-  }
+  void stop() {}
 
   PollableIDManager id_manager = PollableIDManager{};
 

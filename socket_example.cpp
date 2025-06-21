@@ -27,8 +27,6 @@ int main() {
   poller.stop();
   run_thread.join();
 
-  poller.cleanup();
-
   std::cout << "Socket example completed successfully!\n";
 
   return 0;

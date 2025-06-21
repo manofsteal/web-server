@@ -73,8 +73,6 @@ int main() {
   poller.stop();
   run_thread.join();
 
-  poller.cleanup();
-
   std::cout << "Timer test completed." << std::endl;
   std::cout << "- Immediate timer fired: "
             << (immediateTimerFired ? "YES" : "NO") << std::endl;

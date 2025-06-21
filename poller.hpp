@@ -38,20 +38,16 @@ struct Poller {
   Socket *createSocket();
   Timer *createTimer();
   Listener *createListener();
+  void removePollable(PollableID id);
 
-  void remove(PollableID id);
   void start();
   void stop();
 
   // Method to enable POLLOUT for a socket (thread-safe)
-  void enableSocketPollout(PollableID socket_id);
-
-  void cleanup();
+  void enablePollout(PollableID socket_id);
 
 protected:
-  void addSocket(Socket *socket);
-  void addTimer(Timer *timer);
-  void addListener(Listener *listener);
+  void addPollable(Pollable *pollable);
 
   // Helper method to update poll events safely
   void updatePollEvents();

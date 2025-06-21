@@ -3,60 +3,33 @@
 #include <mutex>
 #include <thread>
 
-void Poller::cleanup() {
-  // Stop executor first
-  executor.stop();
-
-  for (auto &[id, entry] : pollEntries) {
-    // entry.cleanup();
-  }
-  pollEntries.clear();
-  poolManager.cleanup();
+// Factory methods
+Listener *Poller::createListener() {
+  Listener *listener = poolManager.listeners.create(&poolManager.id_manager);
+  addPollable(listener);
+  return listener;
 }
 
-// Factory methods
 Socket *Poller::createSocket() {
   Socket *socket = poolManager.sockets.create(&poolManager.id_manager);
-  addSocket(socket);
+  addPollable(socket);
   return socket;
 }
 
 Timer *Poller::createTimer() {
   Timer *timer = poolManager.timers.create(&poolManager.id_manager);
-  addTimer(timer);
+  addPollable(timer);
   return timer;
 }
 
-Listener *Poller::createListener() {
-  Listener *listener = poolManager.listeners.create(&poolManager.id_manager);
-  addListener(listener);
-  return listener;
-}
-
-void Poller::addSocket(Socket *socket) {
-  if (!socket)
+void Poller::addPollable(Pollable *pollable) {
+  if (!pollable)
     return;
-  socket->poller = this;
-  pollEntries[socket->id] = PollEntry{socket, POLLIN};
+  pollable->poller = this;
+  pollEntries[pollable->id] = PollEntry{pollable, POLLIN};
 }
 
-void Poller::addTimer(Timer *timer) {
-  if (!timer)
-    return;
-
-  timer->poller = this;
-  pollEntries[timer->id] = PollEntry{timer, POLLIN};
-}
-
-void Poller::addListener(Listener *listener) {
-  if (!listener)
-    return;
-
-  listener->poller = this;
-  pollEntries[listener->id] = PollEntry{listener, POLLIN};
-}
-
-void Poller::remove(PollableID id) {
+void Poller::removePollable(PollableID id) {
   auto it = pollEntries.find(id);
   if (it != pollEntries.end()) {
     pollEntries.erase(it);
@@ -68,7 +41,7 @@ void Poller::remove(PollableID id) {
   poolManager.listeners.destroy(id);
 }
 
-void Poller::enableSocketPollout(PollableID socket_id) {
+void Poller::enablePollout(PollableID socket_id) {
   pollout_pending[socket_id] = true;
 }
 
@@ -163,5 +136,10 @@ void Poller::start() {
 
 void Poller::stop() {
   running = false;
-  // Executor will be stopped in cleanup()
+  // Stop executor first
+  executor.stop();
+
+  for (auto &[id, entry] : pollEntries) {
+    entry.pollable->stopFunction();
+  }
 }

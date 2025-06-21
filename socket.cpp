@@ -5,7 +5,6 @@ Socket::Socket() : Pollable() {
   type = PollableType::SOCKET;
 
   onEvent = [this](short revents) {
-    // poller->executor.submit([this, revents]() {
     if (file_descriptor >= 0) {
       if (revents & POLLIN) {
         char buffer[1024];
@@ -30,7 +29,6 @@ Socket::Socket() : Pollable() {
         }
       }
     }
-    // });
   };
 }
 
@@ -71,7 +69,7 @@ void Socket::write(const Buffer &data) {
   // Enable POLLOUT if buffer was empty (so we weren't monitoring for write
   // events)
   if (was_empty && poller) {
-    poller->enableSocketPollout(id);
+    poller->enablePollout(id);
   }
 }
 
@@ -82,6 +80,6 @@ void Socket::write(const std::string &data) {
   // Enable POLLOUT if buffer was empty (so we weren't monitoring for write
   // events)
   if (was_empty && poller) {
-    poller->enableSocketPollout(id);
+    poller->enablePollout(id);
   }
 }

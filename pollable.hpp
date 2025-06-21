@@ -15,8 +15,10 @@ struct Pollable {
   Poller *poller = nullptr;
 
   using EventCallback = std::function<void(short revents)>;
+  using StopFunction = std::function<void()>;
 
   EventCallback onEvent = [](short revents) {};
+  StopFunction stopFunction = []() {};
 };
 
 class PollableIDManager {
