@@ -7,12 +7,11 @@
 
 HttpClient *HttpClient::fromSocket(Socket *socket) {
   if (socket) {
-    std::cout << "Create socket" << std::endl;
 
+    // toA work, but asA will cause crash
     HttpClient *client = socket->userData.toA<HttpClient>();
 
     client->socket = socket;
-    std::cout << "Create socket 2" << std::endl;
 
     socket->onData = [client](Socket &socket, const Buffer &data) {
       std::cout << "HttpClient received data: " << data.size() << " bytes"
@@ -20,7 +19,6 @@ HttpClient *HttpClient::fromSocket(Socket *socket) {
       client->handleSocketData(data);
     };
 
-    std::cout << "Create socket 3" << std::endl;
     return client;
   }
 
@@ -245,8 +243,6 @@ void HttpClient::handleSocketData(const Buffer &data) {
   for (size_t i = 0; i < data.size(); ++i) {
     data_str += data.getAt(i);
   }
-
-  std::cout << "Received data from socket: " << data_str << std::endl;
 
   parseResponse(data_str);
 }
