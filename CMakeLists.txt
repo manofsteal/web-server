@@ -5,6 +5,9 @@ project(web_server)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Find OpenSSL
+find_package(OpenSSL REQUIRED)
+
 # Add include directories
 include_directories(.)
 
@@ -16,6 +19,7 @@ set(COMMON_SOURCES
     listener.cpp
     http_client.cpp
     http_server.cpp
+    websocket_client.cpp
 )
 
 # Create timer example
@@ -39,4 +43,8 @@ target_link_libraries(http_client_example_2 pthread)
 
 # Create HTTP server example
 add_executable(http_server_example ${COMMON_SOURCES} http_server_example.cpp)
-target_link_libraries(http_server_example pthread) 
+target_link_libraries(http_server_example pthread)
+
+# Create WebSocket client example
+add_executable(websocket_client_example ${COMMON_SOURCES} websocket_client_example.cpp)
+target_link_libraries(websocket_client_example pthread OpenSSL::SSL OpenSSL::Crypto) 
