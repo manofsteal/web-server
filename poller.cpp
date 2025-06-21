@@ -128,6 +128,23 @@ void Poller::start() {
       if (revents != 0) {
 
         entry.pollable->onEvent(revents);
+        std::string type_str;
+        switch (entry.pollable->type) {
+        case PollableType::SOCKET:
+          type_str = "SOCKET";
+          break;
+        case PollableType::LISTENER:
+          type_str = "LISTENER";
+          break;
+        case PollableType::TIMER:
+          type_str = "TIMER";
+          break;
+        default:
+          type_str = "UNKNOWN";
+          break;
+        }
+        // std::cout << "Event: " << revents << " for " << type_str <<
+        // std::endl;
 
         // If this was a POLLOUT event and write buffer is now empty, disable
         // POLLOUT

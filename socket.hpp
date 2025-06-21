@@ -12,9 +12,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-// Forward declaration to avoid circular dependency
-class Poller;
-
 struct Socket : Pollable {
   Buffer read_buffer = Buffer{};
   Buffer write_buffer = Buffer{};
