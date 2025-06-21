@@ -6,32 +6,30 @@
 #include "any.hpp"
 
 struct Timer : Pollable {
-  using Callback = std::function<void(Any *data)>;
+
+  using UserCallback = std::function<void()>;
   using StartFunction = std::function<bool(Any *data, uint32_t milliseconds)>;
   using StopFunction = std::function<void(Any *data)>;
-  using HandleExpirationFunction = std::function<void(Any *data)>;
-  using CleanupFunction = std::function<void(Any *data)>;
+  using EventFunction = std::function<void(Any *data)>;
 
-  Any data;
+  Any data = Any{};
+  StartFunction startFunction = [](Any *data, uint32_t milliseconds) -> bool {
+    return false;
+  };
+  StopFunction stopFunction = [](Any *data) {};
+  EventFunction eventFunction = [](Any *data) {};
 
-  Callback callback;
-  StartFunction startFunction;
-  StopFunction stopFunction;
-  HandleExpirationFunction handleExpirationFunction;
-  CleanupFunction cleanupFunction;
+  UserCallback userCallback = []() {};
 
-  bool isInterval;
-  uint32_t intervalMs;
+  bool isInterval = false;
+  uint32_t intervalMs = 0;
 
   // Constructor
   Timer();
 
-  bool setTimeout(uint32_t milliseconds, Callback cb);
-  bool setInterval(uint32_t milliseconds, Callback cb);
+  bool setTimeout(uint32_t milliseconds, UserCallback cb);
+  bool setInterval(uint32_t milliseconds, UserCallback cb);
   void stop();
-
-  // Internal methods (called by poller)
-  void handleExpiration();
 
 private:
   bool start();

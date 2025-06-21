@@ -14,9 +14,9 @@ struct PollablePoolManager {
     listeners.items.clear();
   }
 
-  PollableIDManager id_manager;
+  PollableIDManager id_manager = PollableIDManager{};
 
-  PollablePool<Timer> timers;
-  PollablePool<Socket> sockets;
-  PollablePool<Listener> listeners;
+  PollablePool<Timer> timers = PollablePool<Timer>{};
+  PollablePool<Socket> sockets = PollablePool<Socket>{};
+  PollablePool<Listener> listeners = PollablePool<Listener>{};
 };

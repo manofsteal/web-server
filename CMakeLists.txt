@@ -12,6 +12,8 @@ include_directories(.)
 set(COMMON_SOURCES
     poller.cpp
     timer.cpp
+    socket.cpp
+    listener.cpp
 )
 
 # Create timer example

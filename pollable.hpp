@@ -1,20 +1,22 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 
 using PollableID = uint32_t;
 
 enum class PollableType { SOCKET, LISTENER, TIMER };
 
+class Poller;
 struct Pollable {
-  PollableType type;
-  PollableID id;
-  int file_descriptor;
+  PollableType type = PollableType::SOCKET;
+  PollableID id = 0;
+  int file_descriptor = -1;
 
-  // Constructor to replace init()
-  explicit Pollable(PollableType t) : type(t), id(0), file_descriptor(-1) {}
+  Poller *poller = nullptr;
 
-  // Default constructor for cases where type is set later
-  Pollable() : type(PollableType::SOCKET), id(0), file_descriptor(-1) {}
+  using EventCallback = std::function<void(short revents)>;
+
+  EventCallback onEvent = [](short revents) {};
 };
 
 class PollableIDManager {

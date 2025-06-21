@@ -24,7 +24,7 @@ int main() {
   static bool oneMillisecondTimerFired = false;
 
   // Test setTimeout(0, callback) - should fire immediately
-  if (!immediateTimer->setTimeout(0, [](Any *data) {
+  if (!immediateTimer->setTimeout(0, []() {
         immediateTimerFired = true;
         std::cout << "Immediate timer (0ms) fired!" << std::endl;
       })) {
@@ -33,7 +33,7 @@ int main() {
   }
 
   // Test setTimeout(1, callback) - should fire after 1ms
-  if (!oneMillisecondTimer->setTimeout(1, [](Any *data) {
+  if (!oneMillisecondTimer->setTimeout(1, []() {
         oneMillisecondTimerFired = true;
         std::cout << "One millisecond timer (1ms) fired!" << std::endl;
       })) {
@@ -42,7 +42,7 @@ int main() {
   }
 
   // Set up interval timer (fires every 1 second)
-  if (!intervalTimer->setInterval(1000, [](Any *data) {
+  if (!intervalTimer->setInterval(1000, []() {
         intervalCounter++;
         std::cout << "Interval timer fired! Count: " << intervalCounter
                   << std::endl;
@@ -52,7 +52,7 @@ int main() {
   }
 
   // Set up timeout timer (fires once after 3 seconds)
-  if (!timeoutTimer->setTimeout(3000, [](Any *data) {
+  if (!timeoutTimer->setTimeout(3000, []() {
         std::cout << "Timeout timer fired after 3 seconds!" << std::endl;
       })) {
     std::cerr << "Failed to start timeout timer" << std::endl;
@@ -67,7 +67,7 @@ int main() {
   std::cout << "Running for 6 seconds..." << std::endl;
 
   // Run for 6 seconds
-  std::thread run_thread([&poller]() { poller.run(); });
+  std::thread run_thread([&poller]() { poller.start(); });
 
   std::this_thread::sleep_for(std::chrono::seconds(6));
   poller.stop();

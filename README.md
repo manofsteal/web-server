@@ -278,3 +278,19 @@ When contributing to this project, please follow the coding standards defined in
 ## License
 
 This project is open source. Please refer to the license file for details. 
+
+
+### TODO
+
+
+#
+## Performance Optimizations
+
+The server uses vectored I/O operations for improved performance:
+
+- **readv()** - Scatter input: read data into multiple buffers in a single system call
+- **writev()** - Gather output: write data from multiple buffers in a single system call
+
+These operations reduce the number of system calls and improve throughput by allowing the kernel to handle multiple buffer operations atomically.
+
+### Vectored I/O API

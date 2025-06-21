@@ -36,6 +36,32 @@
 - Include guards using #pragma once
 - Minimal includes
 - Forward declarations where possible
+- Use forward declarations to avoid cyclic dependencies between headers
+- Include required headers only in .cpp files when possible
+- Avoid cyclic dependencies between objects by using forward declarations and pointers
+- Do not include headers that create circular dependencies
+- Use pointers or references to break object cycles
+- Keep object relationships unidirectional when possible
+
+# Struct Member Access
+- Access struct members directly, not through getter/setter methods
+- Use direct member assignment and access
+- No encapsulation through private members
+- Public member access for all struct properties
+- Direct field manipulation instead of method calls
+
+# Thread Safety
+- No mutex usage
+- No thread synchronization primitives
+- No atomic operations
+- Single-threaded design
+- No concurrent access protection
+- No locks or synchronization mechanisms
+- Assume single-threaded execution model
+- No thread-safe data structures
+- No race condition protection
+- No concurrent modification safeguards
+
 
 # Documentation
 - Brief comments for public methods

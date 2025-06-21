@@ -15,31 +15,20 @@
 
 struct Poller {
   struct PollEntry {
-    Pollable *pollable;
-    short events; // poll events (POLLIN, POLLOUT, etc.)
-    std::function<void()> callback;
-
-    // Constructor to replace init()
-    PollEntry(Pollable *p, short ev, std::function<void()> cb)
-        : pollable(p), events(ev), callback(std::move(cb)) {}
-
-    // Default constructor for map usage
-    PollEntry() : pollable(nullptr), events(0) {}
-
-    void cleanup() {
-      pollable = nullptr;
-      callback = nullptr;
-      events = 0;
-    }
+    Pollable *pollable = nullptr;
+    short events = 0; // poll events (POLLIN, POLLOUT, etc.)
   };
 
-  PollablePoolManager poolManager;
-  std::vector<pollfd> pollFds;
-  std::map<PollableID, PollEntry> pollEntries;
+  PollablePoolManager poolManager = PollablePoolManager{};
+  std::vector<pollfd> pollFds = {};
+  std::map<PollableID, PollEntry> pollEntries = {};
   bool running = false;
 
+  // Tracking of sockets that need POLLOUT enabled
+  std::map<PollableID, bool> pollout_pending = {};
+
   // Executor for handling callbacks in separate threads
-  Executor executor;
+  Executor executor{};
 
   // Constructor - initialize executor with default thread count
   Poller(size_t executorThreads = std::thread::hardware_concurrency())
@@ -51,8 +40,11 @@ struct Poller {
   Listener *createListener();
 
   void remove(PollableID id);
-  void run();
+  void start();
   void stop();
+
+  // Method to enable POLLOUT for a socket (thread-safe)
+  void enableSocketPollout(PollableID socket_id);
 
   void cleanup();
 
@@ -60,4 +52,7 @@ protected:
   void addSocket(Socket *socket);
   void addTimer(Timer *timer);
   void addListener(Listener *listener);
+
+  // Helper method to update poll events safely
+  void updatePollEvents();
 };
