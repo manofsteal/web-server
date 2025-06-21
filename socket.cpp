@@ -1,5 +1,6 @@
 #include "socket.hpp"
 #include "poller.hpp"
+#include <netdb.h>
 
 Socket::Socket() : Pollable() {
   type = PollableType::SOCKET;
@@ -38,18 +39,32 @@ bool Socket::start(const std::string &host, uint16_t port) {
     return false;
   }
 
-  struct sockaddr_in server_addr;
-  server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons(port);
+  struct addrinfo hints = {};
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_protocol = IPPROTO_TCP;
 
-  if (inet_pton(AF_INET, host.c_str(), &server_addr.sin_addr) <= 0) {
+  struct addrinfo *result = nullptr;
+  std::string port_str = std::to_string(port);
+  int res = getaddrinfo(host.c_str(), port_str.c_str(), &hints, &result);
+  if (res != 0 || !result) {
     close(file_descriptor);
+    std::cerr << "Failed to resolve address " << host << std::endl;
     return false;
   }
 
-  if (connect(file_descriptor, (struct sockaddr *)&server_addr,
-              sizeof(server_addr)) < 0) {
+  bool connected = false;
+  for (struct addrinfo *rp = result; rp != nullptr; rp = rp->ai_next) {
+    if (connect(file_descriptor, rp->ai_addr, rp->ai_addrlen) == 0) {
+      connected = true;
+      break;
+    }
+  }
+  freeaddrinfo(result);
+
+  if (!connected) {
     close(file_descriptor);
+    std::cerr << "Failed to connect to " << host << ":" << port << std::endl;
     return false;
   }
 

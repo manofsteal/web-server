@@ -14,6 +14,7 @@ set(COMMON_SOURCES
     timer.cpp
     socket.cpp
     listener.cpp
+    http_client.cpp
 )
 
 # Create timer example
@@ -29,4 +30,8 @@ add_executable(ping_pong_server ${COMMON_SOURCES} ping_pong_server.cpp)
 target_link_libraries(ping_pong_server pthread)
 
 add_executable(ping_pong_client ${COMMON_SOURCES} ping_pong_client.cpp)
-target_link_libraries(ping_pong_client pthread) 
+target_link_libraries(ping_pong_client pthread)
+
+# Create HTTP client example
+add_executable(http_client_example ${COMMON_SOURCES} http_client_example.cpp)
+target_link_libraries(http_client_example pthread) 

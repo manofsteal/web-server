@@ -58,7 +58,7 @@ bool Timer::setInterval(uint32_t milliseconds, UserCallback cb) {
 void Timer::setupPlatformTimer() {
 #ifdef __linux__
   // Initialize Linux timer data
-  LinuxTimerData *linux_data = data.asA<LinuxTimerData>();
+  LinuxTimerData *linux_data = data.toA<LinuxTimerData>();
   linux_data->timer_fd = -1;
 
   // Set up platform-specific function pointers

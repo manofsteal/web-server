@@ -1,5 +1,6 @@
 #pragma once
 
+#include "any.hpp"
 #include "buffer.hpp"
 #include "pollable.hpp"
 #include <arpa/inet.h>
@@ -13,11 +14,15 @@
 #include <unistd.h>
 
 struct Socket : Pollable {
-  Buffer read_buffer = Buffer{};
-  Buffer write_buffer = Buffer{};
 
   std::string remote_addr = "";
   uint16_t remote_port = 0;
+
+  Buffer read_buffer = Buffer{};
+  Buffer write_buffer = Buffer{};
+
+  // for higher application protocol
+  Any userData;
 
   using Callback = std::function<void(Socket &, const Buffer &)>;
   Callback onData = [](Socket &, const Buffer &) {};
