@@ -15,8 +15,8 @@ WebSocketClient *WebSocketClient::fromSocket(Socket *socket) {
     WebSocketClient *client = socket->userData.toA<WebSocketClient>();
     client->socket = socket;
 
-    socket->onData = [client](Socket &socket, const Buffer &data) {
-      std::cout << "WebSocketClient received data: " << data.size() << " bytes"
+    socket->onData = [client](Socket &socket, const BufferView &data) {
+      std::cout << "WebSocketClient received data: " << data.size << " bytes"
                 << std::endl;
       client->handleSocketData(data);
     };
@@ -190,13 +190,10 @@ bool WebSocketClient::parseHandshakeResponse(const std::string &data) {
   return true;
 }
 
-void WebSocketClient::handleSocketData(const Buffer &data) {
+void WebSocketClient::handleSocketData(const BufferView &data) {
   if (status == WebSocketStatus::CONNECTING) {
     // Handle handshake response
-    std::string data_str;
-    for (size_t i = 0; i < data.size(); ++i) {
-      data_str += data.getAt(i);
-    }
+    std::string data_str(data.data, data.size);
 
     if (!parseHandshakeResponse(data_str)) {
       status = WebSocketStatus::CLOSED;
@@ -204,10 +201,7 @@ void WebSocketClient::handleSocketData(const Buffer &data) {
     }
   } else if (status == WebSocketStatus::OPEN) {
     // Handle WebSocket frames
-    std::vector<uint8_t> frame_data;
-    for (size_t i = 0; i < data.size(); ++i) {
-      frame_data.push_back(data.getAt(i));
-    }
+    std::vector<uint8_t> frame_data(data.data, data.data + data.size);
     parseFrame(frame_data);
   }
 }

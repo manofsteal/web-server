@@ -65,7 +65,7 @@ struct WebSocketClient {
   void parseUrl(const std::string &url);
   std::string buildHandshakeRequest();
   bool parseHandshakeResponse(const std::string &data);
-  void handleSocketData(const Buffer &data);
+  void handleSocketData(const BufferView &data);
   void parseFrame(const std::vector<uint8_t> &data);
   std::vector<uint8_t>
   buildFrame(const std::string &message,

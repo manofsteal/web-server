@@ -13,8 +13,8 @@ HttpClient *HttpClient::fromSocket(Socket *socket) {
 
     client->socket = socket;
 
-    socket->onData = [client](Socket &socket, const Buffer &data) {
-      std::cout << "HttpClient received data: " << data.size() << " bytes"
+    socket->onData = [client](Socket &socket, const BufferView &data) {
+      std::cout << "HttpClient received data: " << data.size << " bytes"
                 << std::endl;
       client->handleSocketData(data);
     };
@@ -238,11 +238,7 @@ void HttpClient::parseResponse(const std::string &data) {
   buffer.clear();
 }
 
-void HttpClient::handleSocketData(const Buffer &data) {
-  std::string data_str;
-  for (size_t i = 0; i < data.size(); ++i) {
-    data_str += data.getAt(i);
-  }
-
+void HttpClient::handleSocketData(const BufferView &data) {
+  std::string data_str(data.data, data.size);
   parseResponse(data_str);
 }

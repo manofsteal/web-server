@@ -6,6 +6,7 @@
 
 int main() {
   Poller poller;
+  int ping_counter = 0;
 
   // Create and configure listener
   Listener *listener = poller.createListener();
@@ -23,21 +24,19 @@ int main() {
   std::cout << "Ping-pong server listening on port 8080..." << std::endl;
 
   // Handle new connections
-  listener->onAccept = [](Socket *client) {
+  listener->onAccept = [&ping_counter](Socket *client) {
     std::cout << "New connection from " << client->remote_addr << ":"
               << client->remote_port << std::endl;
 
     // Handle incoming data from client
-    client->onData = [](Socket &socket, const Buffer &data) {
-      std::string message;
-      for (size_t i = 0; i < data.size(); ++i) {
-        message += data.getAt(i);
-      }
+    client->onData = [&ping_counter](Socket &socket, const BufferView &data) {
+      std::string message(data.data, data.size);
       std::cout << "Received: " << message;
 
       if (message.find("ping") != std::string::npos) {
-        std::cout << "Sending pong response" << std::endl;
-        socket.write("pong\n");
+        ping_counter++;
+        std::cout << "Sending pong response #" << ping_counter << std::endl;
+        socket.write("pong " + std::to_string(ping_counter) + "\n");
       }
     };
   };

@@ -6,58 +6,34 @@
 int main() {
   Poller poller;
 
-  // Create timers using the poller factory
-  Timer *intervalTimer = poller.createTimer();
-  Timer *timeoutTimer = poller.createTimer();
-  Timer *immediateTimer = poller.createTimer();
-  Timer *oneMillisecondTimer = poller.createTimer();
-
-  if (!intervalTimer || !timeoutTimer || !immediateTimer ||
-      !oneMillisecondTimer) {
-    std::cerr << "Failed to create timers\n";
-    return 1;
-  }
-
   // Counter to track interval timer firings
   static int intervalCounter = 0;
   static bool immediateTimerFired = false;
   static bool oneMillisecondTimerFired = false;
 
   // Test setTimeout(0, callback) - should fire immediately
-  if (!immediateTimer->setTimeout(0, []() {
-        immediateTimerFired = true;
-        std::cout << "Immediate timer (0ms) fired!" << std::endl;
-      })) {
-    std::cerr << "Failed to start immediate timer" << std::endl;
-    return 1;
-  }
+  poller.setTimeout(0, []() {
+    immediateTimerFired = true;
+    std::cout << "Immediate timer (0ms) fired!" << std::endl;
+  });
 
   // Test setTimeout(1, callback) - should fire after 1ms
-  if (!oneMillisecondTimer->setTimeout(1, []() {
-        oneMillisecondTimerFired = true;
-        std::cout << "One millisecond timer (1ms) fired!" << std::endl;
-      })) {
-    std::cerr << "Failed to start 1ms timer" << std::endl;
-    return 1;
-  }
+  poller.setTimeout(1, []() {
+    oneMillisecondTimerFired = true;
+    std::cout << "One millisecond timer (1ms) fired!" << std::endl;
+  });
 
   // Set up interval timer (fires every 1 second)
-  if (!intervalTimer->setInterval(1000, []() {
-        intervalCounter++;
-        std::cout << "Interval timer fired! Count: " << intervalCounter
-                  << std::endl;
-      })) {
-    std::cerr << "Failed to start interval timer" << std::endl;
-    return 1;
-  }
+  poller.setInterval(1000, []() {
+    intervalCounter++;
+    std::cout << "Interval timer fired! Count: " << intervalCounter
+              << std::endl;
+  });
 
   // Set up timeout timer (fires once after 3 seconds)
-  if (!timeoutTimer->setTimeout(3000, []() {
-        std::cout << "Timeout timer fired after 3 seconds!" << std::endl;
-      })) {
-    std::cerr << "Failed to start timeout timer" << std::endl;
-    return 1;
-  }
+  poller.setTimeout(3000, []() {
+    std::cout << "Timeout timer fired after 3 seconds!" << std::endl;
+  });
 
   std::cout << "Timers started:" << std::endl;
   std::cout << "- Immediate timer: fires immediately (0ms)" << std::endl;

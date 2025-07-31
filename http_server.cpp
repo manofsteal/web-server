@@ -45,11 +45,8 @@ void HttpServer::delete_(
 }
 
 void HttpServer::handleConnection(Socket &socket) {
-  socket.onData = [this](Socket &socket, const Buffer &data) {
-    std::string data_str;
-    for (size_t i = 0; i < data.size(); ++i) {
-      data_str += data.getAt(i);
-    }
+  socket.onData = [this](Socket &socket, const BufferView &data) {
+    std::string data_str(data.data, data.size);
     handleRequest(socket, data_str);
   };
 }

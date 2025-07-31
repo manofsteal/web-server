@@ -52,5 +52,5 @@ struct HttpClient {
   void parseUrl(const std::string &url);
   std::string buildRequest();
   void parseResponse(const std::string &data);
-  void handleSocketData(const Buffer &data);
+  void handleSocketData(const BufferView &data);
 };

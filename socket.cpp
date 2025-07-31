@@ -11,9 +11,9 @@ Socket::Socket() : Pollable() {
         char buffer[1024];
         ssize_t bytes_read = read(file_descriptor, buffer, sizeof(buffer));
         if (bytes_read > 0) {
-          read_buffer.append(buffer, bytes_read);
+          BufferView view{buffer, static_cast<size_t>(bytes_read)};
           if (onData) {
-            onData(*this, read_buffer);
+            onData(*this, view);
           }
         }
       }

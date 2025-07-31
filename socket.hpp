@@ -13,6 +13,11 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+struct BufferView {
+  char* data;
+  size_t size;
+};
+
 struct Socket : Pollable {
 
   std::string remote_addr = "";
@@ -24,8 +29,8 @@ struct Socket : Pollable {
   // for higher application protocol
   Any userData;
 
-  using Callback = std::function<void(Socket &, const Buffer &)>;
-  Callback onData = [](Socket &, const Buffer &) {};
+  using Callback = std::function<void(Socket &, const BufferView &)>;
+  Callback onData = [](Socket &, const BufferView &) {};
 
   Socket();
 
