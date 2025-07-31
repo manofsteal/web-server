@@ -42,7 +42,9 @@ void Poller::enablePollout(PollableID socket_id) {
 }
 
 void Poller::updatePollEvents() {
-  for (auto &[socket_id, pending] : pollout_pending) {
+  for (auto &entry : pollout_pending) {
+    auto socket_id = entry.first;
+    auto &pending = entry.second;
     if (pending) {
       auto it = pollEntries.find(socket_id);
       if (it != pollEntries.end()) {
@@ -68,7 +70,9 @@ void Poller::start() {
 
     // Rebuild pollFds from pollEntries
     pollFds.clear();
-    for (const auto &[id, entry] : pollEntries) {
+    for (const auto &pair : pollEntries) {
+      const auto &id = pair.first;
+      const auto &entry = pair.second;
       pollfd pfd;
       pfd.fd = entry.pollable->file_descriptor;
       pfd.events = entry.events;
@@ -100,7 +104,9 @@ void Poller::start() {
 
     // Process events
     size_t index = 0;
-    for (const auto &[id, entry] : pollEntries) {
+    for (const auto &pair : pollEntries) {
+      const auto &id = pair.first;
+      const auto &entry = pair.second;
       if (index >= pollFds.size())
         break;
 
@@ -146,7 +152,9 @@ void Poller::stop() {
   // Stop executor first
   executor.stop();
 
-  for (auto &[id, entry] : pollEntries) {
+  for (auto &pair : pollEntries) {
+    auto &id = pair.first;
+    auto &entry = pair.second;
     entry.pollable->stopFunction();
   }
 }
@@ -209,7 +217,9 @@ int Poller::calculatePollTimeout() {
   auto next_expiry = std::chrono::steady_clock::time_point::max();
   
   // Find the earliest timer expiry
-  for (const auto &[id, timer] : timers) {
+  for (const auto &pair : timers) {
+    const auto &id = pair.first;
+    const auto &timer = pair.second;
     if (timer.active && timer.expiry_time < next_expiry) {
       next_expiry = timer.expiry_time;
     }
@@ -232,7 +242,9 @@ void Poller::processExpiredTimers() {
   std::vector<TimerID> expired_timers;
   
   // Find expired timers
-  for (auto &[id, timer] : timers) {
+  for (auto &pair : timers) {
+    const auto &id = pair.first;
+    auto &timer = pair.second;
     if (timer.active && timer.expiry_time <= now) {
       expired_timers.push_back(id);
     }
