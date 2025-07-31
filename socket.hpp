@@ -2,6 +2,7 @@
 
 #include "any.hpp"
 #include "buffer.hpp"
+#include "buffer_view.hpp"
 #include "pollable.hpp"
 #include <arpa/inet.h>
 #include <cstring> // for strerror
@@ -13,10 +14,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-struct BufferView {
-  char* data;
-  size_t size;
-};
 
 struct Socket : Pollable {
 
