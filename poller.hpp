@@ -4,14 +4,16 @@
 #include "pollable.hpp"
 #include "pollable_pool_manager.hpp"
 #include "socket.hpp"
+#include <chrono>
 #include <errno.h>
 #include <functional>
 #include <map>
 #include <poll.h>
 #include <signal.h> // For sigaction and siginfo_t
 #include <stdexcept>
+#include <thread>
+#include <unistd.h> // For pipe() and close()
 #include <vector>
-#include <chrono>
 
 struct Poller {
   struct PollEntry {
@@ -22,7 +24,7 @@ struct Poller {
   // Timer structures for poll-based timing
   using TimerID = uint32_t;
   using TimerCallback = std::function<void()>;
-  
+
   struct TimerEntry {
     TimerID id;
     std::chrono::steady_clock::time_point expiry_time;
@@ -35,6 +37,12 @@ struct Poller {
   TimerID next_timer_id = 1;
   std::map<TimerID, TimerEntry> timers;
 
+  // Maximum timeout for poll() calls (in milliseconds, -1 means no limit)
+  int max_poll_timeout_ms = 1000;
+
+  // Current poll timeout being used (for optimization)
+  int current_poll_timeout_ms = 1000;
+
   PollablePoolManager poolManager = PollablePoolManager{};
   std::vector<pollfd> pollFds = {};
   std::map<PollableID, PollEntry> pollEntries = {};
@@ -46,9 +54,18 @@ struct Poller {
   // Executor for handling callbacks in separate threads
   Executor executor{};
 
+  // Notification pipe for breaking poll() calls
+  int notification_pipe[2] = {-1, -1};
+
+  // Thread ID of the poller thread
+  std::thread::id poller_thread_id;
+
   // Constructor - initialize executor with default thread count
   Poller(size_t executorThreads = std::thread::hardware_concurrency())
       : executor(executorThreads) {}
+
+  // Destructor
+  ~Poller() = default;
 
   // Factory methods
   Socket *createSocket();
@@ -60,6 +77,11 @@ struct Poller {
 
   // Method to enable POLLOUT for a socket (thread-safe)
   void enablePollout(PollableID socket_id);
+
+  // Notification methods for breaking poll() calls
+  void notify(); // Wake up poll() call from another thread
+  void
+  setMaxPollTimeout(int max_timeout_ms); // Set maximum timeout for poll() calls
 
   // Timer methods
   TimerID setTimeout(uint32_t ms, TimerCallback callback);
@@ -76,4 +98,10 @@ protected:
   // Timer helper methods
   int calculatePollTimeout();
   void processExpiredTimers();
+
+  // Pipe helper methods
+  bool createNotificationPipe();
+  void closeNotificationPipe();
+  bool hasNotificationPipe() const;
+  void drainNotificationPipe();
 };

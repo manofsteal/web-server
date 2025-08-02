@@ -1,9 +1,10 @@
 #include "poller.hpp"
+#include <algorithm>
+#include <fcntl.h>
 #include <iostream>
+#include <limits>
 #include <mutex>
 #include <thread>
-#include <algorithm>
-#include <limits>
 
 // Factory methods
 Listener *Poller::createListener() {
@@ -17,7 +18,6 @@ Socket *Poller::createSocket() {
   addPollable(socket);
   return socket;
 }
-
 
 void Poller::addPollable(Pollable *pollable) {
   if (!pollable)
@@ -41,6 +41,29 @@ void Poller::enablePollout(PollableID socket_id) {
   pollout_pending[socket_id] = true;
 }
 
+void Poller::notify() {
+  // If called from the same thread as the poller, do nothing
+  if (std::this_thread::get_id() == poller_thread_id) {
+    return;
+  }
+
+  // Write a byte to the notification pipe to wake up poll()
+  if (hasNotificationPipe()) {
+    char byte = 1;
+
+    if (write(notification_pipe[1], &byte, 1) == -1) {
+      // Handle error but don't throw - this might be called from signal
+      // handlers
+      std::cerr << "Failed to write to notification pipe: " << strerror(errno)
+                << std::endl;
+    }
+  }
+}
+
+void Poller::setMaxPollTimeout(int max_timeout_ms) {
+  max_poll_timeout_ms = std::max(2000, max_timeout_ms);
+}
+
 void Poller::updatePollEvents() {
   for (auto &entry : pollout_pending) {
     auto socket_id = entry.first;
@@ -58,6 +81,12 @@ void Poller::updatePollEvents() {
 void Poller::start() {
   running = true;
 
+  // Capture the poller thread ID
+  poller_thread_id = std::this_thread::get_id();
+
+  // Create notification pipe at start
+  createNotificationPipe();
+
   while (running) {
     // Process any expired timers first
     processExpiredTimers();
@@ -66,10 +95,20 @@ void Poller::start() {
     updatePollEvents();
 
     // Calculate timeout based on next timer expiry
-    int timeout = calculatePollTimeout();
+    current_poll_timeout_ms = calculatePollTimeout();
 
     // Rebuild pollFds from pollEntries
     pollFds.clear();
+
+    // Add notification pipe as first fd (if available)
+    if (hasNotificationPipe()) {
+      pollfd notification_pfd;
+      notification_pfd.fd = notification_pipe[0];
+      notification_pfd.events = POLLIN;
+      notification_pfd.revents = 0;
+      pollFds.push_back(notification_pfd);
+    }
+
     for (const auto &pair : pollEntries) {
       const auto &id = pair.first;
       const auto &entry = pair.second;
@@ -80,15 +119,7 @@ void Poller::start() {
       pollFds.push_back(pfd);
     }
 
-    // If no pollable objects and no timers, sleep briefly
-    if (pollFds.empty() && timers.empty()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      continue;
-    }
-
-    // Use calculated timeout or 0 if we have no file descriptors but have timers
-    int poll_timeout = pollFds.empty() ? 0 : timeout;
-    int result = poll(pollFds.data(), pollFds.size(), poll_timeout);
+    int result = poll(pollFds.data(), pollFds.size(), current_poll_timeout_ms);
 
     if (result < 0) {
       if (errno == EINTR)
@@ -104,6 +135,16 @@ void Poller::start() {
 
     // Process events
     size_t index = 0;
+
+    // Check notification pipe first (index 0) if it exists
+    bool has_notification_pipe = hasNotificationPipe();
+    if (has_notification_pipe && pollFds.size() > 0 &&
+        pollFds[0].revents & POLLIN) {
+      drainNotificationPipe();
+    }
+
+    // Process pollable events (starting after notification pipe if it exists)
+    index = has_notification_pipe ? 1 : 0;
     for (const auto &pair : pollEntries) {
       const auto &id = pair.first;
       const auto &entry = pair.second;
@@ -121,9 +162,6 @@ void Poller::start() {
           break;
         case PollableType::LISTENER:
           type_str = "LISTENER";
-          break;
-        case PollableType::TIMER:
-          type_str = "TIMER";
           break;
         default:
           type_str = "UNKNOWN";
@@ -157,6 +195,9 @@ void Poller::stop() {
     auto &entry = pair.second;
     entry.pollable->stopFunction();
   }
+
+  // Close notification pipe
+  closeNotificationPipe();
 }
 
 // Timer implementation
@@ -164,16 +205,19 @@ Poller::TimerID Poller::setTimeout(uint32_t ms, TimerCallback callback) {
   TimerID id = next_timer_id++;
   auto now = std::chrono::steady_clock::now();
   auto expiry = now + std::chrono::milliseconds(ms);
-  
+
   timers[id] = TimerEntry{
-    id,
-    expiry,
-    ms,
-    callback,
-    false, // not an interval
-    true   // active
+      id,    expiry, ms, callback,
+      false, // not an interval
+      true   // active
   };
-  
+
+  // If poller is running, notify to recalculate timeout
+  // (especially important when called from within timer callbacks)
+  if (running) {
+    notify();
+  }
+
   return id;
 }
 
@@ -181,16 +225,19 @@ Poller::TimerID Poller::setInterval(uint32_t ms, TimerCallback callback) {
   TimerID id = next_timer_id++;
   auto now = std::chrono::steady_clock::now();
   auto expiry = now + std::chrono::milliseconds(ms);
-  
+
   timers[id] = TimerEntry{
-    id,
-    expiry,
-    ms,
-    callback,
-    true, // is an interval
-    true  // active
+      id,   expiry, ms, callback,
+      true, // is an interval
+      true  // active
   };
-  
+
+  // If new timer has smaller timeout than current poll timeout, notify to
+  // recalculate
+  if (running && (int)ms < current_poll_timeout_ms) {
+    notify();
+  }
+
   return id;
 }
 
@@ -210,12 +257,12 @@ void Poller::clearInterval(TimerID timer_id) {
 
 int Poller::calculatePollTimeout() {
   if (timers.empty()) {
-    return 1000; // Default 1 second timeout
+    return max_poll_timeout_ms;
   }
-  
+
   auto now = std::chrono::steady_clock::now();
   auto next_expiry = std::chrono::steady_clock::time_point::max();
-  
+
   // Find the earliest timer expiry
   for (const auto &pair : timers) {
     const auto &id = pair.first;
@@ -224,23 +271,24 @@ int Poller::calculatePollTimeout() {
       next_expiry = timer.expiry_time;
     }
   }
-  
+
   if (next_expiry == std::chrono::steady_clock::time_point::max()) {
-    return 1000; // No active timers, use default timeout
+    return max_poll_timeout_ms; // No active timers, use default timeout
   }
-  
+
   // Calculate milliseconds until next expiry
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(next_expiry - now);
+  auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(next_expiry - now);
   int timeout_ms = static_cast<int>(duration.count());
-  
+
   // Ensure we don't return negative timeout or wait too long
-  return std::max(0, std::min(timeout_ms, 1000));
+  return std::max(1, std::min(timeout_ms, max_poll_timeout_ms));
 }
 
 void Poller::processExpiredTimers() {
   auto now = std::chrono::steady_clock::now();
   std::vector<TimerID> expired_timers;
-  
+
   // Find expired timers
   for (auto &pair : timers) {
     const auto &id = pair.first;
@@ -249,16 +297,16 @@ void Poller::processExpiredTimers() {
       expired_timers.push_back(id);
     }
   }
-  
+
   // Process expired timers
   for (TimerID id : expired_timers) {
     auto it = timers.find(id);
     if (it != timers.end()) {
       TimerEntry &timer = it->second;
-      
+
       // Execute callback
       timer.callback();
-      
+
       if (timer.is_interval) {
         // Reschedule interval timer
         timer.expiry_time = now + std::chrono::milliseconds(timer.interval_ms);
@@ -266,6 +314,58 @@ void Poller::processExpiredTimers() {
         // Remove one-time timer
         timers.erase(it);
       }
+    }
+  }
+}
+
+// Pipe helper methods
+bool Poller::createNotificationPipe() {
+  if (notification_pipe[0] == -1 && notification_pipe[1] == -1) {
+    if (pipe(notification_pipe) == -1) {
+      notification_pipe[0] = -1;
+      notification_pipe[1] = -1;
+      return false;
+    }
+
+    // Make the read end non-blocking
+    int flags = fcntl(notification_pipe[0], F_GETFL, 0);
+    if (flags != -1) {
+      fcntl(notification_pipe[0], F_SETFL, flags | O_NONBLOCK);
+    }
+
+    return true;
+  }
+  return true; // Already created
+}
+
+void Poller::closeNotificationPipe() {
+  if (notification_pipe[0] != -1) {
+    close(notification_pipe[0]);
+    notification_pipe[0] = -1;
+  }
+  if (notification_pipe[1] != -1) {
+    close(notification_pipe[1]);
+    notification_pipe[1] = -1;
+  }
+}
+
+bool Poller::hasNotificationPipe() const { return notification_pipe[0] != -1; }
+
+void Poller::drainNotificationPipe() {
+  if (hasNotificationPipe()) {
+    char buffer[256];
+    ssize_t bytes_read;
+
+    while ((bytes_read = read(notification_pipe[0], buffer, sizeof(buffer))) >
+           0) {
+      // Just drain the pipe, no action needed
+    }
+
+    // Check if we stopped because of EAGAIN/EWOULDBLOCK (normal for
+    // non-blocking) or because of an actual error
+    if (bytes_read == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
+      std::cerr << "Error draining notification pipe: " << strerror(errno)
+                << std::endl;
     }
   }
 }
