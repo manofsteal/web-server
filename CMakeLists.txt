@@ -49,6 +49,10 @@ target_link_libraries(http_server_example pthread)
 add_executable(sequence_example poller.cpp socket.cpp listener.cpp sequence.cpp sequence_example.cpp)
 target_link_libraries(sequence_example pthread)
 
+# Create sequence resumable example
+add_executable(sequence_resumable_example poller.cpp socket.cpp listener.cpp sequence.cpp sequence_resumable_example.cpp)
+target_link_libraries(sequence_resumable_example pthread)
+
 # # Create WebSocket client example
 # add_executable(websocket_client_example ${COMMON_SOURCES} websocket_client_example.cpp)
 # target_link_libraries(websocket_client_example pthread OpenSSL::SSL OpenSSL::Crypto) 
