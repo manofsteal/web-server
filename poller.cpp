@@ -143,6 +143,8 @@ void Poller::start() {
       drainNotificationPipe();
     }
 
+    processCleanupTasks();
+
     // Process pollable events (starting after notification pipe if it exists)
     index = has_notification_pipe ? 1 : 0;
     for (const auto &pair : pollEntries) {
@@ -242,17 +244,28 @@ Poller::TimerID Poller::setInterval(uint32_t ms, TimerCallback callback) {
 }
 
 void Poller::clearTimeout(TimerID timer_id) {
-  auto it = timers.find(timer_id);
-  if (it != timers.end()) {
-    timers.erase(it);
-  }
+  cleanupTasks.push_back([this, timer_id]() {
+    auto it = timers.find(timer_id);
+    if (it != timers.end()) {
+      timers.erase(it);
+    }
+  });
 }
 
 void Poller::clearInterval(TimerID timer_id) {
-  auto it = timers.find(timer_id);
-  if (it != timers.end()) {
-    timers.erase(it);
+  cleanupTasks.push_back([this, timer_id]() {
+    auto it = timers.find(timer_id);
+    if (it != timers.end()) {
+      timers.erase(it);
+    }
+  });
+}
+
+void Poller::processCleanupTasks() {
+  for (auto &task : cleanupTasks) {
+    task();
   }
+  cleanupTasks.clear();
 }
 
 int Poller::calculatePollTimeout() {

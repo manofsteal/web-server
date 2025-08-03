@@ -51,6 +51,8 @@ struct Poller {
   // Tracking of sockets that need POLLOUT enabled
   std::map<PollableID, bool> pollout_pending = {};
 
+  std::vector<std::function<void()>> cleanupTasks = {};
+
   // Executor for handling callbacks in separate threads
   Executor executor{};
 
@@ -90,6 +92,8 @@ struct Poller {
   void clearInterval(TimerID timer_id);
 
 protected:
+  void processCleanupTasks();
+
   void addPollable(Pollable *pollable);
 
   // Helper method to update poll events safely

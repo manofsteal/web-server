@@ -58,6 +58,9 @@ int main() {
   // Test setTimeout(0, callback) - should fire immediately
   test_single_timeout_lambda(0);
 
+  // Test setTimeout(0, callback) - should fire immediately
+  test_single_timeout_lambda(0);
+
   // // Test setTimeout(1, callback) - should fire after 1ms
   test_single_timeout_lambda(1);
 
