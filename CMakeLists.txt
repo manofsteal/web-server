@@ -19,7 +19,7 @@ set(COMMON_SOURCES
     http_client.cpp
     http_server.cpp
     sequence.cpp
-    # websocket_client.cpp
+    websocket_client.cpp
 )
 
 # Create timer example (minimal dependencies)
@@ -53,6 +53,10 @@ target_link_libraries(sequence_example pthread)
 add_executable(sequence_resumable_example poller.cpp socket.cpp listener.cpp sequence.cpp sequence_resumable_example.cpp)
 target_link_libraries(sequence_resumable_example pthread)
 
-# # Create WebSocket client example
-# add_executable(websocket_client_example ${COMMON_SOURCES} websocket_client_example.cpp)
-# target_link_libraries(websocket_client_example pthread OpenSSL::SSL OpenSSL::Crypto) 
+# Create WebSocket client example
+add_executable(websocket_client_example ${COMMON_SOURCES} websocket_client_example.cpp)
+target_link_libraries(websocket_client_example pthread OpenSSL::SSL OpenSSL::Crypto)
+
+# Create WebSocket client test
+add_executable(websocket_test ${COMMON_SOURCES} websocket_test.cpp)
+target_link_libraries(websocket_test pthread OpenSSL::SSL OpenSSL::Crypto) 

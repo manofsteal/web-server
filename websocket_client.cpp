@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cstring>
 #include <iostream>
-#include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
@@ -16,8 +15,7 @@ WebSocketClient *WebSocketClient::fromSocket(Socket *socket) {
     client->socket = socket;
 
     socket->onData = [client](Socket &socket, const BufferView &data) {
-      std::cout << "WebSocketClient received data: " << data.size << " bytes"
-                << std::endl;
+      std::cout << "[WebSocket] Socket onData callback triggered with " << data.size << " bytes" << std::endl;
       client->handleSocketData(data);
     };
 
@@ -28,18 +26,23 @@ WebSocketClient *WebSocketClient::fromSocket(Socket *socket) {
 }
 
 bool WebSocketClient::connect(const std::string &url) {
+  std::cout << "[WebSocket] Starting connection to: " << url << std::endl;
   this->url = url;
   status = WebSocketStatus::CONNECTING;
 
   parseUrl(url);
+  std::cout << "[WebSocket] Parsed URL - Host: " << host << ", Port: " << port << ", Path: " << path << std::endl;
 
   // Connect to server
+  std::cout << "[WebSocket] Attempting socket connection to " << host << ":" << port << std::endl;
   if (!socket->start(host, port)) {
+    std::cout << "[WebSocket] Socket connection failed" << std::endl;
     status = WebSocketStatus::CLOSED;
     onError("Failed to connect to " + host + ":" + std::to_string(port));
     return false;
   }
 
+  std::cout << "[WebSocket] Socket connected successfully" << std::endl;
   // Perform WebSocket handshake
   return performHandshake();
 }
@@ -95,8 +98,11 @@ void WebSocketClient::close(uint16_t code, const std::string &reason) {
 }
 
 bool WebSocketClient::performHandshake() {
+  std::cout << "[WebSocket] Performing handshake" << std::endl;
   std::string handshake_request = buildHandshakeRequest();
+  std::cout << "[WebSocket] Sending handshake request:\n" << handshake_request << std::endl;
   socket->write(handshake_request);
+  std::cout << "[WebSocket] Handshake request sent, waiting for response" << std::endl;
   return true;
 }
 
@@ -140,7 +146,7 @@ std::string WebSocketClient::buildHandshakeRequest() {
 
   std::stringstream ss;
   ss << "GET " << path << " HTTP/1.1\r\n";
-  ss << "Host: " << host << ":" << port << "\r\n";
+  ss << "Host: echo.websocket.org:" << port << "\r\n";
   ss << "Upgrade: websocket\r\n";
   ss << "Connection: Upgrade\r\n";
   ss << "Sec-WebSocket-Key: " << key << "\r\n";
@@ -191,15 +197,22 @@ bool WebSocketClient::parseHandshakeResponse(const std::string &data) {
 }
 
 void WebSocketClient::handleSocketData(const BufferView &data) {
+  std::cout << "[WebSocket] Received " << data.size << " bytes of data" << std::endl;
+  
   if (status == WebSocketStatus::CONNECTING) {
+    std::cout << "[WebSocket] Processing handshake response" << std::endl;
     // Handle handshake response
     std::string data_str(data.data, data.size);
+    std::cout << "[WebSocket] Handshake response:\n" << data_str << std::endl;
 
     if (!parseHandshakeResponse(data_str)) {
+      std::cout << "[WebSocket] Handshake failed" << std::endl;
       status = WebSocketStatus::CLOSED;
       return;
     }
+    std::cout << "[WebSocket] Handshake successful, connection is now OPEN" << std::endl;
   } else if (status == WebSocketStatus::OPEN) {
+    std::cout << "[WebSocket] Processing WebSocket frame" << std::endl;
     // Handle WebSocket frames
     std::vector<uint8_t> frame_data(data.data, data.data + data.size);
     parseFrame(frame_data);
@@ -326,7 +339,7 @@ WebSocketClient::buildFrame(const std::vector<uint8_t> &data,
   frame.push_back(first_byte);
 
   // Second byte: MASK + Payload length
-  uint8_t second_byte = 0x00; // No mask for client->server
+  uint8_t second_byte = 0x80; // MASK bit set for client->server
   if (data.size() < 126) {
     second_byte |= data.size();
     frame.push_back(second_byte);
@@ -343,8 +356,23 @@ WebSocketClient::buildFrame(const std::vector<uint8_t> &data,
     }
   }
 
-  // Payload
-  frame.insert(frame.end(), data.begin(), data.end());
+  // Generate masking key
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<> dis(0, 255);
+  
+  uint32_t masking_key = 0;
+  for (int i = 0; i < 4; ++i) {
+    uint8_t key_byte = dis(gen);
+    masking_key = (masking_key << 8) | key_byte;
+    frame.push_back(key_byte);
+  }
+
+  // Mask and add payload
+  for (size_t i = 0; i < data.size(); ++i) {
+    uint8_t masked_byte = data[i] ^ ((masking_key >> ((3 - (i % 4)) * 8)) & 0xFF);
+    frame.push_back(masked_byte);
+  }
 
   return frame;
 }
@@ -359,22 +387,28 @@ std::string WebSocketClient::generateKey() {
     key_bytes[i] = dis(gen);
   }
 
-  // Base64 encode
-  BIO *bio, *b64;
-  BUF_MEM *bufferPtr;
+  // Base64 encode using standard encoding
+  static const std::string base64_chars = 
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz"
+    "0123456789+/";
 
-  b64 = BIO_new(BIO_f_base64());
-  bio = BIO_new(BIO_s_mem());
-  bio = BIO_push(b64, bio);
-
-  BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-  BIO_write(bio, key_bytes.data(), key_bytes.size());
-  BIO_flush(bio);
-  BIO_get_mem_ptr(bio, &bufferPtr);
-
-  std::string result(bufferPtr->data, bufferPtr->length);
-
-  BIO_free_all(bio);
+  std::string result;
+  int val = 0, valb = -6;
+  for (uint8_t c : key_bytes) {
+    val = (val << 8) + c;
+    valb += 8;
+    while (valb >= 0) {
+      result.push_back(base64_chars[(val >> valb) & 0x3F]);
+      valb -= 6;
+    }
+  }
+  if (valb > -6) {
+    result.push_back(base64_chars[((val << 8) >> (valb + 8)) & 0x3F]);
+  }
+  while (result.size() % 4) {
+    result.push_back('=');
+  }
 
   return result;
 }
