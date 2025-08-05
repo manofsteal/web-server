@@ -14,8 +14,10 @@ struct Sequence {
   Sequence(Poller &poller);
 
   // Tasks
-  void addTask(Poller::TimerCallback callback, uint32_t timeout_ms = 0);
-  void addDelay(uint32_t delay_ms);
+  void addTask(Poller::TimerCallback callback);
+  void addWait(uint32_t period_ms);
+  void addWait(std::function<bool()> condition, uint32_t period_ms = 10,
+               uint32_t timeout_ms = 1000);
   void clearTasks();
 
   // Control
@@ -29,12 +31,20 @@ struct Sequence {
 
 protected:
   void executeNextTask();
+  void postNextTask();
+
+  void executeCondition();
 
 private:
+  using TimePoint = std::chrono::steady_clock::time_point;
   struct SequenceTask {
-    std::function<void()> callback;
+    std::function<void()> callback = [] {};
+    size_t period_ms;
+    bool is_condition = false;
+
+    // use for wait condition
+    std::function<bool()> condition;
     uint32_t timeout_ms;
-    bool is_delay;
   };
 
   std::vector<SequenceTask> tasks;
@@ -45,7 +55,7 @@ private:
   // use for poll-Timer to track the current task
   Poller &poller;
   Poller::TimerID current_timer_id = 0;
-  
+
   // For pause/resume functionality
   std::chrono::steady_clock::time_point task_start_time;
   uint32_t remaining_time_ms = 0;

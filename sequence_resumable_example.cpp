@@ -11,17 +11,14 @@ int main() {
   auto start_time = std::chrono::steady_clock::now();
 
   // Add tasks to test pause/resume
-  sequence.addTask(
-      [start_time]() {
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            now - start_time);
-        std::cout << "Task 1 executed at " << elapsed.count() << "ms"
-                  << std::endl;
-      },
-      1000);
+  sequence.addTask([start_time]() {
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed =
+        std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time);
+    std::cout << "Task 1 executed at " << elapsed.count() << "ms" << std::endl;
+  });
 
-  sequence.addDelay(2000); // 2 second delay to test pause during delay
+  sequence.addWait(2000); // 2 second delay to test pause during delay
 
   sequence.addTask([start_time]() {
     auto now = std::chrono::steady_clock::now();
@@ -30,7 +27,7 @@ int main() {
     std::cout << "Task 2 executed at " << elapsed.count() << "ms" << std::endl;
   });
 
-  sequence.addDelay(2000); // 2 second delay to test pause during delay
+  sequence.addWait(2000); // 2 second delay to test pause during delay
 
   sequence.addTask([&poller, start_time]() {
     auto now = std::chrono::steady_clock::now();

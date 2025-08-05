@@ -3,12 +3,19 @@
 
 Sequence::Sequence(Poller &poller) : poller(poller) {}
 
-void Sequence::addTask(Poller::TimerCallback callback, uint32_t timeout_ms) {
-  tasks.push_back({callback, timeout_ms, false});
+void Sequence::addTask(Poller::TimerCallback callback) {
+  tasks.push_back({callback, 0, false});
 }
 
-void Sequence::addDelay(uint32_t delay_ms) {
-  tasks.push_back({nullptr, delay_ms, true});
+void Sequence::addWait(uint32_t period_ms) {
+  tasks.push_back({[] {}, period_ms, false});
+}
+
+void Sequence::addWait(std::function<bool()> condition, uint32_t period_ms,
+                       uint32_t timeout_ms) {
+
+  const auto taskIndex = tasks.size();
+  tasks.push_back({[] {}, period_ms, true, condition, timeout_ms});
 }
 
 void Sequence::clearTasks() {
@@ -46,6 +53,17 @@ void Sequence::stop() {
   }
 }
 
+void Sequence::postNextTask() {
+  // Move to next task
+  current_task_index++;
+
+  // reset timer id
+  current_timer_id = 0;
+
+  // Execute next task
+  executeNextTask();
+}
+
 void Sequence::executeNextTask() {
   if (!running || current_task_index >= tasks.size()) {
     // Sequence is finished or stopped
@@ -59,33 +77,76 @@ void Sequence::executeNextTask() {
   }
 
   const auto &task = tasks[current_task_index];
-  // Use remaining time from pause if available, otherwise use task's original timeout
-  uint32_t timeout_to_use = remaining_time_ms > 0 ? remaining_time_ms : task.timeout_ms;
-  
+  // Use remaining time from pause if available, otherwise use task's original
+  // period
+  uint32_t period_to_use =
+      remaining_time_ms > 0 ? remaining_time_ms : task.period_ms;
+
   // Record when this task started for pause/resume timing calculations
   task_start_time = std::chrono::steady_clock::now();
   remaining_time_ms = 0; // Reset remaining time since we're using it now
 
   // Set up a timer for this task
-  current_timer_id = poller.setTimeout(timeout_to_use, [this, task]() {
+  current_timer_id = poller.setTimeout(period_to_use, [this, task]() {
     if (!running || paused) {
       return;
     }
 
-    // Execute the callback if it's not a delay
-    if (!task.is_delay && task.callback) {
+    if (task.is_condition) {
+
+      executeCondition();
+
+    } else {
+
       task.callback();
+
+      postNextTask();
     }
-
-    // Move to next task
-    current_task_index++;
-    current_timer_id = 0;
-
-    // Execute next task
-    executeNextTask();
   });
 }
 
+void Sequence::executeCondition() {
+  if (!running) {
+    std::cout << "Sequence finished" << std::endl;
+    return;
+  }
+
+  if (paused) {
+    std::cout << "Sequence paused" << std::endl;
+    return;
+  }
+
+  auto &task = tasks[current_task_index];
+
+  if (!task.is_condition) {
+    std::cerr << "Task not a wait-condition " << std::endl;
+    return;
+  }
+
+  std::cerr << "Check condition" << std::endl;
+
+  if (task.condition()) {
+
+    postNextTask();
+
+  } else {
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::steady_clock::now() - task_start_time)
+                       .count();
+
+    if (elapsed >= task.timeout_ms) {
+
+      postNextTask();
+
+    } else {
+
+      std::cerr << "Check again" << std::endl;
+
+      current_timer_id =
+          poller.setTimeout(task.period_ms, [this] { executeCondition(); });
+    }
+  }
+}
 // Pause the sequence execution
 // This function stops the current timer and calculates how much time remains
 // for the current task, so it can be resumed later from the correct position
@@ -99,12 +160,15 @@ void Sequence::pause() {
   // Calculate remaining time for current task
   if (current_timer_id != 0) {
     auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - task_start_time).count();
-    
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       now - task_start_time)
+                       .count();
+
     if (current_task_index < tasks.size()) {
       const auto &task = tasks[current_task_index];
-      uint32_t total_time = remaining_time_ms > 0 ? remaining_time_ms : task.timeout_ms;
-      
+      uint32_t total_time =
+          remaining_time_ms > 0 ? remaining_time_ms : task.timeout_ms;
+
       // Store remaining time if task hasn't completed yet
       if (elapsed < total_time) {
         remaining_time_ms = total_time - elapsed;
