@@ -42,6 +42,15 @@ The web server is built around several core components:
 - CMake 3.10 or higher
 - C++17 compatible compiler (GCC, Clang, or MSVC)
 - pthread library
+- OpenSSL library (for WebSocket support)
+
+### Installing websocat (optional, for performance comparison)
+
+```bash
+# Download websocat binary
+curl -L https://github.com/vi/websocat/releases/latest/download/websocat.x86_64-unknown-linux-musl -o websocat
+chmod +x websocat
+```
 
 ### Build Instructions
 
@@ -321,7 +330,20 @@ int main() {
    python websocket_echo_server.py
    ```
 
-3. **Run the clients:**
+3. **Run the WebSocket server (C++ implementation):**
+   ```bash
+   ./websocket_server_example
+   ```
+
+   **Or run websocat echo server (Rust reference implementation):**
+
+   curl -L https://github.com/vi/websocat/releases/latest/download/websocat.x86_64-unknown-linux-musl -o websocat
+   
+   ```bash
+   ./websocat ws-l:0.0.0.0:8765 mirror: --text
+   ```
+
+4. **Run the clients:**
    ```bash
    # Basic example
    ./websocket_client_example
@@ -330,7 +352,7 @@ int main() {
    ./websocket_client_example_2
    ```
 
-4. **Expected output:**
+5. **Expected output:**
    ```
    WebSocket Client Example
    ========================

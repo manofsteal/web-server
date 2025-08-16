@@ -40,6 +40,7 @@ int main() {
 
   // Connect to local WebSocket echo server
   bool success = client->connect("ws://localhost:8765/echo");
+  // bool success = client->connect("ws://localhost:8765");
 
   if (!success) {
     LOG_ERROR("Failed to connect to WebSocket server");

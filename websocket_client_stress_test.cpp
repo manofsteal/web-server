@@ -70,8 +70,11 @@ int main(int argc, char *argv[]) {
     int response_time = message_timer.getElapsedMs();
 
     // Extract message ID from echo response
+    // std::string expected =
+    //     "Echo: Message #" + std::to_string(expected_message_id + 1);
+
     std::string expected =
-        "Echo: Message #" + std::to_string(expected_message_id + 1);
+        "Message #" + std::to_string(expected_message_id + 1);
     bool correct_echo = (message == expected);
 
     if (correct_echo) {
@@ -142,7 +145,8 @@ int main(int argc, char *argv[]) {
 
   // Connect to local WebSocket echo server
   LOG("🚀 Connecting to WebSocket server...");
-  bool success = client->connect("ws://localhost:8765/echo");
+  // bool success = client->connect("ws://localhost:8765/echo");
+  bool success = client->connect("ws://localhost:8765");
 
   if (!success) {
     LOG_ERROR("Failed to connect to WebSocket server");

@@ -42,13 +42,13 @@ int main() {
   };
 
   // Route for echo functionality
-  server->route("/echo", [](WebSocketConnection &conn) {
+  server->route("/", [](WebSocketConnection &conn) { // echo
     LOG("[Echo Route] Setting up echo handlers for connection");
 
     conn.onMessage = [](WebSocketConnection &connection,
                         const std::string &message) {
       LOG("[Echo] Received text message: ", message);
-      connection.sendText("Echo: " + message);
+      connection.sendText(message);
     };
 
     conn.onBinary = [](WebSocketConnection &connection,
