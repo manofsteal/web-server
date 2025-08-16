@@ -83,7 +83,7 @@ void Sequence::executeNextTask() {
       remaining_time_ms > 0 ? remaining_time_ms : task.period_ms;
 
   // Record when this task started for pause/resume timing calculations
-  task_start_time = std::chrono::steady_clock::now();
+  task_timer.reset();
   remaining_time_ms = 0; // Reset remaining time since we're using it now
 
   // Set up a timer for this task
@@ -130,9 +130,7 @@ void Sequence::executeCondition() {
     postNextTask();
 
   } else {
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                       std::chrono::steady_clock::now() - task_start_time)
-                       .count();
+    auto elapsed = task_timer.getElapsedMs();
 
     if (elapsed >= task.timeout_ms) {
 
@@ -159,10 +157,7 @@ void Sequence::pause() {
 
   // Calculate remaining time for current task
   if (current_timer_id != 0) {
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                       now - task_start_time)
-                       .count();
+    auto elapsed = task_timer.getElapsedMs();
 
     if (current_task_index < tasks.size()) {
       const auto &task = tasks[current_task_index];

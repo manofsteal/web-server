@@ -205,8 +205,8 @@ void Poller::stop() {
 // Timer implementation
 Poller::TimerID Poller::setTimeout(uint32_t ms, TimerCallback callback) {
   TimerID id = next_timer_id++;
-  auto now = std::chrono::steady_clock::now();
-  auto expiry = now + std::chrono::milliseconds(ms);
+  auto now = SteadyClock::now();
+  auto expiry = SteadyClock::addMilliseconds(now, ms);
 
   timers[id] = TimerEntry{
       id,    expiry, ms, callback,
@@ -225,8 +225,8 @@ Poller::TimerID Poller::setTimeout(uint32_t ms, TimerCallback callback) {
 
 Poller::TimerID Poller::setInterval(uint32_t ms, TimerCallback callback) {
   TimerID id = next_timer_id++;
-  auto now = std::chrono::steady_clock::now();
-  auto expiry = now + std::chrono::milliseconds(ms);
+  auto now = SteadyClock::now();
+  auto expiry = SteadyClock::addMilliseconds(now, ms);
 
   timers[id] = TimerEntry{
       id,   expiry, ms, callback,
@@ -273,8 +273,8 @@ int Poller::calculatePollTimeout() {
     return max_poll_timeout_ms;
   }
 
-  auto now = std::chrono::steady_clock::now();
-  auto next_expiry = std::chrono::steady_clock::time_point::max();
+  auto now = SteadyClock::now();
+  auto next_expiry = SteadyClock::TimePoint::max();
 
   // Find the earliest timer expiry
   for (const auto &pair : timers) {
@@ -285,21 +285,19 @@ int Poller::calculatePollTimeout() {
     }
   }
 
-  if (next_expiry == std::chrono::steady_clock::time_point::max()) {
+  if (next_expiry == SteadyClock::TimePoint::max()) {
     return max_poll_timeout_ms; // No active timers, use default timeout
   }
 
   // Calculate milliseconds until next expiry
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(next_expiry - now);
-  int timeout_ms = static_cast<int>(duration.count());
+  int timeout_ms = SteadyClock::durationMs(now, next_expiry);
 
   // Ensure we don't return negative timeout or wait too long
   return std::max(1, std::min(timeout_ms, max_poll_timeout_ms));
 }
 
 void Poller::processExpiredTimers() {
-  auto now = std::chrono::steady_clock::now();
+  auto now = SteadyClock::now();
   std::vector<TimerID> expired_timers;
 
   // Find expired timers
@@ -322,7 +320,7 @@ void Poller::processExpiredTimers() {
 
       if (timer.is_interval) {
         // Reschedule interval timer
-        timer.expiry_time = now + std::chrono::milliseconds(timer.interval_ms);
+        timer.expiry_time = SteadyClock::addMilliseconds(now, timer.interval_ms);
       } else {
         // Remove one-time timer
         timers.erase(it);

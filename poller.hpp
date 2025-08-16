@@ -4,6 +4,7 @@
 #include "pollable.hpp"
 #include "pollable_pool_manager.hpp"
 #include "socket.hpp"
+#include "steady_clock.hpp"
 #include <chrono>
 #include <errno.h>
 #include <functional>
@@ -27,7 +28,7 @@ struct Poller {
 
   struct TimerEntry {
     TimerID id;
-    std::chrono::steady_clock::time_point expiry_time;
+    SteadyClock::TimePoint expiry_time;
     uint32_t interval_ms;
     TimerCallback callback;
     bool is_interval;

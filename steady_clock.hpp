@@ -17,4 +17,8 @@ struct SteadyClock {
     static int elapsedMs(const TimePoint& since) {
         return std::chrono::duration_cast<std::chrono::milliseconds>(now() - since).count();
     }
+
+    static int durationMs(const TimePoint& from, const TimePoint& to) {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(to - from).count();
+    }
 }; 

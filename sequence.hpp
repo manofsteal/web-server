@@ -3,6 +3,8 @@
 #pragma once
 
 #include "poller.hpp"
+#include "steady_clock.hpp"
+#include "steady_timer.hpp"
 
 #include <chrono>
 #include <functional>
@@ -36,7 +38,7 @@ protected:
   void executeCondition();
 
 private:
-  using TimePoint = std::chrono::steady_clock::time_point;
+  using TimePoint = SteadyClock::TimePoint;
   struct SequenceTask {
     std::function<void()> callback = [] {};
     size_t period_ms;
@@ -57,6 +59,6 @@ private:
   Poller::TimerID current_timer_id = 0;
 
   // For pause/resume functionality
-  std::chrono::steady_clock::time_point task_start_time;
+  SteadyTimer task_timer;
   uint32_t remaining_time_ms = 0;
 };
