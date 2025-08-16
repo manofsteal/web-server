@@ -1,4 +1,5 @@
 #include "poller.hpp"
+#include "log.hpp"
 #include <chrono>
 #include <iostream>
 #include <string>
@@ -11,37 +12,36 @@ int main() {
   // Create and configure listener
   Listener *listener = poller.createListener();
   if (!listener) {
-    std::cerr << "Failed to create listener" << std::endl;
+    LOG_ERROR("Failed to create listener");
     return 1;
   }
 
   // Listen on port 8080
   if (!listener->start(8080)) {
-    std::cerr << "Failed to listen on port 8080" << std::endl;
+    LOG_ERROR("Failed to listen on port 8080");
     return 1;
   }
 
-  std::cout << "Ping-pong server listening on port 8080..." << std::endl;
+  LOG("Ping-pong server listening on port 8080...");
 
   // Handle new connections
   listener->onAccept = [&ping_counter](Socket *client) {
-    std::cout << "New connection from " << client->remote_addr << ":"
-              << client->remote_port << std::endl;
+    LOG("New connection from ", client->remote_addr, ":", client->remote_port);
 
     // Handle incoming data from client
     client->onData = [&ping_counter](Socket &socket, const BufferView &data) {
       std::string message(data.data, data.size);
-      std::cout << "Received: " << message;
+      LOG("Received: ", message);
 
       if (message.find("ping") != std::string::npos) {
         ping_counter++;
-        std::cout << "Sending pong response #" << ping_counter << std::endl;
+        LOG("Sending pong response #", ping_counter);
         socket.write("pong " + std::to_string(ping_counter) + "\n");
       }
     };
   };
 
-  std::cout << "Server running... (Press Ctrl+C to stop)" << std::endl;
+  LOG("Server running... (Press Ctrl+C to stop)");
 
   // Run the event loop forever
   poller.start();

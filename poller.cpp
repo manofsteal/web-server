@@ -1,4 +1,5 @@
 #include "poller.hpp"
+#include "log.hpp"
 #include <algorithm>
 #include <fcntl.h>
 #include <iostream>
@@ -54,8 +55,7 @@ void Poller::notify() {
     if (write(notification_pipe[1], &byte, 1) == -1) {
       // Handle error but don't throw - this might be called from signal
       // handlers
-      std::cerr << "Failed to write to notification pipe: " << strerror(errno)
-                << std::endl;
+      LOG_ERROR("Failed to write to notification pipe: ", strerror(errno));
     }
   }
 }
@@ -124,7 +124,7 @@ void Poller::start() {
     if (result < 0) {
       if (errno == EINTR)
         continue; // Interrupted by signal, continue
-      std::cerr << "Poll error: " << strerror(errno) << std::endl;
+      LOG_ERROR("Poll error: ", strerror(errno));
       break;
     }
 
@@ -375,8 +375,7 @@ void Poller::drainNotificationPipe() {
     // Check if we stopped because of EAGAIN/EWOULDBLOCK (normal for
     // non-blocking) or because of an actual error
     if (bytes_read == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
-      std::cerr << "Error draining notification pipe: " << strerror(errno)
-                << std::endl;
+      LOG_ERROR("Error draining notification pipe: ", strerror(errno));
     }
   }
 }

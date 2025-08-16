@@ -1,5 +1,6 @@
 #include "poller.hpp"
 #include "websocket_client.hpp"
+#include "log.hpp"
 #include <chrono>
 #include <iostream>
 #include <thread>
@@ -11,47 +12,46 @@ int main() {
   WebSocketClient *client = WebSocketClient::fromSocket(poller.createSocket());
 
   if (!client) {
-    std::cerr << "Failed to create WebSocket client" << std::endl;
+    LOG_ERROR("Failed to create WebSocket client");
     return 1;
   }
 
-  std::cout << "WebSocket Client Example" << std::endl;
-  std::cout << "========================" << std::endl;
+  LOG("WebSocket Client Example");
+  LOG("========================");
 
   // Set up event handlers
   client->onOpen = []() {
-    std::cout << "WebSocket connection opened!" << std::endl;
+    LOG("WebSocket connection opened!");
   };
 
   client->onMessage = [](const std::string &message) {
-    std::cout << "Received message: " << message << std::endl;
+    LOG("Received message: ", message);
   };
 
   client->onBinary = [](const std::vector<uint8_t> &data) {
-    std::cout << "Received binary data: " << data.size() << " bytes"
-              << std::endl;
+    LOG("Received binary data: ", data.size(), " bytes");
   };
 
   client->onClose = [](uint16_t code, const std::string &reason) {
-    std::cout << "WebSocket closed: " << code << " - " << reason << std::endl;
+    LOG("WebSocket closed: ", code, " - ", reason);
   };
 
   client->onError = [](const std::string &error) {
-    std::cerr << "WebSocket error: " << error << std::endl;
+    LOG_ERROR("WebSocket error: ", error);
   };
 
   // Connect to local WebSocket echo server
   bool success = client->connect("ws://localhost:8765/");
 
   if (!success) {
-    std::cerr << "Failed to connect to WebSocket server" << std::endl;
+    LOG_ERROR("Failed to connect to WebSocket server");
     return 1;
   }
 
   // Set up a timer to send test messages after connection is established
   poller.setTimeout(2000, [client, &poller]() {
     if (client->status == WebSocketStatus::OPEN) {
-      std::cout << "Sending test messages..." << std::endl;
+      LOG("Sending test messages...");
       client->sendText("Hello, WebSocket!");
       
       poller.setTimeout(1000, [client, &poller]() {
@@ -73,7 +73,7 @@ int main() {
         });
       });
     } else {
-      std::cout << "WebSocket not open, status: " << (int)client->status << std::endl;
+      LOG("WebSocket not open, status: ", (int)client->status);
       poller.stop();
     }
   });
@@ -81,7 +81,7 @@ int main() {
   // Run the event loop
   poller.start();
 
-  std::cout << "WebSocket Client Example completed." << std::endl;
+  LOG("WebSocket Client Example completed.");
 
   return 0;
 }

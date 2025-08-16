@@ -1,5 +1,6 @@
 #include "websocket_client.hpp"
 #include "poller.hpp"
+#include "log.hpp"
 #include <algorithm>
 #include <cstring>
 #include <iostream>
@@ -15,7 +16,7 @@ WebSocketClient *WebSocketClient::fromSocket(Socket *socket) {
     client->socket = socket;
 
     socket->onData = [client](Socket &socket, const BufferView &data) {
-      std::cout << "[WebSocket] Socket onData callback triggered with " << data.size << " bytes" << std::endl;
+      LOG("[WebSocket] Socket onData callback triggered with ", data.size, " bytes");
       client->handleSocketData(data);
     };
 
@@ -26,23 +27,23 @@ WebSocketClient *WebSocketClient::fromSocket(Socket *socket) {
 }
 
 bool WebSocketClient::connect(const std::string &url) {
-  std::cout << "[WebSocket] Starting connection to: " << url << std::endl;
+  LOG("[WebSocket] Starting connection to: ", url);
   this->url = url;
   status = WebSocketStatus::CONNECTING;
 
   parseUrl(url);
-  std::cout << "[WebSocket] Parsed URL - Host: " << host << ", Port: " << port << ", Path: " << path << std::endl;
+  LOG("[WebSocket] Parsed URL - Host: ", host, ", Port: ", port, ", Path: ", path);
 
   // Connect to server
-  std::cout << "[WebSocket] Attempting socket connection to " << host << ":" << port << std::endl;
+  LOG("[WebSocket] Attempting socket connection to ", host, ":", port);
   if (!socket->start(host, port)) {
-    std::cout << "[WebSocket] Socket connection failed" << std::endl;
+    LOG_ERROR("[WebSocket] Socket connection failed");
     status = WebSocketStatus::CLOSED;
     onError("Failed to connect to " + host + ":" + std::to_string(port));
     return false;
   }
 
-  std::cout << "[WebSocket] Socket connected successfully" << std::endl;
+  LOG("[WebSocket] Socket connected successfully");
   // Perform WebSocket handshake
   return performHandshake();
 }
@@ -98,11 +99,11 @@ void WebSocketClient::close(uint16_t code, const std::string &reason) {
 }
 
 bool WebSocketClient::performHandshake() {
-  std::cout << "[WebSocket] Performing handshake" << std::endl;
+  LOG("[WebSocket] Performing handshake");
   std::string handshake_request = buildHandshakeRequest();
-  std::cout << "[WebSocket] Sending handshake request:\n" << handshake_request << std::endl;
+  LOG("[WebSocket] Sending handshake request:\n", handshake_request);
   socket->write(handshake_request);
-  std::cout << "[WebSocket] Handshake request sent, waiting for response" << std::endl;
+  LOG("[WebSocket] Handshake request sent, waiting for response");
   return true;
 }
 
@@ -205,22 +206,22 @@ bool WebSocketClient::parseHandshakeResponse(const std::string &data) {
 }
 
 void WebSocketClient::handleSocketData(const BufferView &data) {
-  std::cout << "[WebSocket] Received " << data.size << " bytes of data" << std::endl;
+  LOG("[WebSocket] Received ", data.size, " bytes of data");
   
   if (status == WebSocketStatus::CONNECTING) {
-    std::cout << "[WebSocket] Processing handshake response" << std::endl;
+    LOG("[WebSocket] Processing handshake response");
     // Handle handshake response
     std::string data_str(data.data, data.size);
-    std::cout << "[WebSocket] Handshake response:\n" << data_str << std::endl;
+    LOG("[WebSocket] Handshake response:\n", data_str);
 
     if (!parseHandshakeResponse(data_str)) {
-      std::cout << "[WebSocket] Handshake failed" << std::endl;
+      LOG_ERROR("[WebSocket] Handshake failed");
       status = WebSocketStatus::CLOSED;
       return;
     }
-    std::cout << "[WebSocket] Handshake successful, connection is now OPEN" << std::endl;
+    LOG("[WebSocket] Handshake successful, connection is now OPEN");
   } else if (status == WebSocketStatus::OPEN) {
-    std::cout << "[WebSocket] Processing WebSocket frame" << std::endl;
+    LOG("[WebSocket] Processing WebSocket frame");
     // Handle WebSocket frames
     std::vector<uint8_t> frame_data(data.data, data.data + data.size);
     parseFrame(frame_data);

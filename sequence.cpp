@@ -1,5 +1,6 @@
 #include "sequence.hpp"
 #include "poller.hpp"
+#include "log.hpp"
 
 Sequence::Sequence(Poller &poller) : poller(poller) {}
 
@@ -68,7 +69,7 @@ void Sequence::executeNextTask() {
   if (!running || current_task_index >= tasks.size()) {
     // Sequence is finished or stopped
     running = false;
-    std::cout << "Sequence finished" << std::endl;
+    LOG("Sequence finished");
     return;
   }
 
@@ -107,23 +108,23 @@ void Sequence::executeNextTask() {
 
 void Sequence::executeCondition() {
   if (!running) {
-    std::cout << "Sequence finished" << std::endl;
+    LOG("Sequence finished");
     return;
   }
 
   if (paused) {
-    std::cout << "Sequence paused" << std::endl;
+    LOG("Sequence paused");
     return;
   }
 
   auto &task = tasks[current_task_index];
 
   if (!task.is_condition) {
-    std::cerr << "Task not a wait-condition " << std::endl;
+    LOG_ERROR("Task not a wait-condition");
     return;
   }
 
-  std::cerr << "Check condition" << std::endl;
+  LOG("Check condition");
 
   if (task.condition()) {
 
@@ -138,7 +139,7 @@ void Sequence::executeCondition() {
 
     } else {
 
-      std::cerr << "Check again" << std::endl;
+      LOG("Check again");
 
       current_timer_id =
           poller.setTimeout(task.period_ms, [this] { executeCondition(); });

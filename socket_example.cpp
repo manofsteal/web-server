@@ -1,4 +1,5 @@
 #include "poller.hpp"
+#include "log.hpp"
 #include <chrono>
 #include <iostream>
 #include <thread>
@@ -9,13 +10,13 @@ int main() {
   // Create a socket using the poller factory (automatically added to poller)
   Socket *socket = poller.createSocket();
   if (!socket) {
-    std::cerr << "Failed to create socket\n";
+    LOG_ERROR("Failed to create socket");
     return 1;
   }
 
-  std::cout << "Socket created successfully!\n";
-  std::cout << "Socket ID: " << socket->id << "\n";
-  std::cout << "Socket file descriptor: " << socket->file_descriptor << "\n";
+  LOG("Socket created successfully!");
+  LOG("Socket ID: ", socket->id);
+  LOG("Socket file descriptor: ", socket->file_descriptor);
 
   // For now, just demonstrate that the socket was created
   // In a real example, you would connect to a server or bind/listen
@@ -27,7 +28,7 @@ int main() {
   poller.stop();
   run_thread.join();
 
-  std::cout << "Socket example completed successfully!\n";
+  LOG("Socket example completed successfully!");
 
   return 0;
 }
