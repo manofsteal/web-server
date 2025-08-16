@@ -14,6 +14,13 @@ Makefile
 timer_example
 ping_pong_server
 ping_pong_client
+websocket_client_example
+websocket_test
+http_server_example
+http_client_example_2
+socket_example
+sequence_example
+sequence_resumable_example
 
 # IDE files
 .vscode/
@@ -25,6 +32,24 @@ ping_pong_client
 # OS files
 .DS_Store
 Thumbs.db
+
+# Python
+websocket_test_env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Temporary files
 *.tmp
