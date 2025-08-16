@@ -114,9 +114,11 @@ void WebSocketClient::parseUrl(const std::string &url) {
 
   size_t protocol_end = url.find("://");
   if (protocol_end != std::string::npos) {
-    std::string protocol_str = url.substr(0, protocol_end);
-    if (protocol_str == "wss") {
+    protocol = url.substr(0, protocol_end);
+    if (protocol == "wss") {
       port = 443;
+    } else if (protocol == "ws") {
+      port = 80;
     }
   }
 
@@ -146,7 +148,13 @@ std::string WebSocketClient::buildHandshakeRequest() {
 
   std::stringstream ss;
   ss << "GET " << path << " HTTP/1.1\r\n";
-  ss << "Host: echo.websocket.org:" << port << "\r\n";
+  ss << "Host: " << host;
+  if ((port != 80 && port != 443) || 
+      (port == 443 && protocol != "wss") || 
+      (port == 80 && protocol == "wss")) {
+    ss << ":" << port;
+  }
+  ss << "\r\n";
   ss << "Upgrade: websocket\r\n";
   ss << "Connection: Upgrade\r\n";
   ss << "Sec-WebSocket-Key: " << key << "\r\n";

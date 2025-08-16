@@ -40,51 +40,46 @@ int main() {
     std::cerr << "WebSocket error: " << error << std::endl;
   };
 
-  // Connect to WebSocket echo server
-  // Using echo.websocket.org IP address directly
-  bool success = client->connect("echo.websocket.org:80");
+  // Connect to local WebSocket echo server
+  bool success = client->connect("ws://localhost:8765/");
 
   if (!success) {
     std::cerr << "Failed to connect to WebSocket server" << std::endl;
     return 1;
   }
 
+  // Set up a timer to send test messages after connection is established
+  poller.setTimeout(2000, [client, &poller]() {
+    if (client->status == WebSocketStatus::OPEN) {
+      std::cout << "Sending test messages..." << std::endl;
+      client->send("Hello, WebSocket!");
+      
+      poller.setTimeout(1000, [client, &poller]() {
+        client->send("This is a test message");
+        
+        poller.setTimeout(1000, [client, &poller]() {
+          client->send("Goodbye!");
+          
+          // Send binary data
+          std::vector<uint8_t> binary_data = {0x48, 0x65, 0x6C, 0x6C, 0x6F}; // "Hello"
+          client->sendBinary(binary_data);
+          
+          poller.setTimeout(1000, [client, &poller]() {
+            client->close(1000, "Normal closure");
+            poller.setTimeout(1000, [&poller]() {
+              poller.stop();
+            });
+          });
+        });
+      });
+    } else {
+      std::cout << "WebSocket not open, status: " << (int)client->status << std::endl;
+      poller.stop();
+    }
+  });
+
   // Run the event loop
   poller.start();
-
-  // Wait a bit for connection to establish
-  // std::this_thread::sleep_for(std::chrono::seconds(5));
-
-  // std::cout << "WebSocket status: " << (int)client->status << std::endl;
-
-  // // Send some test messages
-  // if (client->status == WebSocketStatus::OPEN) {
-  //   std::cout << "Sending test messages..." << std::endl;
-
-  //   client->send("Hello, WebSocket!");
-  //   std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-  //   client->send("This is a test message");
-  //   std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-  //   client->send("Goodbye!");
-  //   std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-  //   // Send binary data
-  //   std::vector<uint8_t> binary_data = {0x48, 0x65, 0x6C, 0x6C,
-  //                                       0x6F}; // "Hello"
-  //   client->sendBinary(binary_data);
-  //   std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-  //   // Close the connection
-  //   client->close(1000, "Normal closure");
-  // }
-
-  // // Wait for responses
-  // std::this_thread::sleep_for(std::chrono::seconds(3));
-
-  // poller.stop();
-  // run_thread.join();
 
   std::cout << "WebSocket Client Example completed." << std::endl;
 
