@@ -19,6 +19,8 @@ set(COMMON_SOURCES
     http_client.cpp
     http_server.cpp
     sequence.cpp
+    area_allocator.cpp
+    poller_memory.cpp
 )
 
 # WebSocket source files (require OpenSSL)
@@ -74,3 +76,18 @@ target_link_libraries(websocket_test pthread OpenSSL::SSL OpenSSL::Crypto)
 # Create WebSocket server example
 add_executable(websocket_server_example ${WEBSOCKET_SOURCES} websocket_server_example.cpp)
 target_link_libraries(websocket_server_example pthread OpenSSL::SSL OpenSSL::Crypto)
+
+# Create container test
+add_executable(container_test ${COMMON_SOURCES} container_test.cpp)
+target_link_libraries(container_test pthread)
+
+# Create area allocator test
+add_executable(area_allocator_test ${COMMON_SOURCES} area_allocator_test.cpp)
+target_link_libraries(area_allocator_test pthread)
+add_executable(simple_area_test ${COMMON_SOURCES} simple_area_test.cpp)
+target_link_libraries(simple_area_test pthread)
+add_executable(area_allocator_enabled_test ${COMMON_SOURCES} area_allocator_enabled_test.cpp)
+target_link_libraries(area_allocator_enabled_test pthread)
+target_compile_definitions(area_allocator_enabled_test PRIVATE USE_AREA_ALLOCATORS=1)
+add_executable(make_functions_test ${COMMON_SOURCES} make_functions_test.cpp)
+target_link_libraries(make_functions_test pthread)
