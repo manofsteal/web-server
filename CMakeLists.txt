@@ -11,7 +11,7 @@ find_package(OpenSSL REQUIRED)
 # Add include directories
 include_directories(.)
 
-# Common source files
+# Common source files (without WebSocket components that require OpenSSL)
 set(COMMON_SOURCES
     poller.cpp
     socket.cpp
@@ -19,7 +19,13 @@ set(COMMON_SOURCES
     http_client.cpp
     http_server.cpp
     sequence.cpp
+)
+
+# WebSocket source files (require OpenSSL)
+set(WEBSOCKET_SOURCES
+    ${COMMON_SOURCES}
     websocket_client.cpp
+    websocket_server.cpp
 )
 
 # Create timer example (minimal dependencies)
@@ -54,17 +60,17 @@ add_executable(sequence_resumable_example poller.cpp socket.cpp listener.cpp seq
 target_link_libraries(sequence_resumable_example pthread)
 
 # Create WebSocket client example
-add_executable(websocket_client_example ${COMMON_SOURCES} websocket_client_example.cpp)
+add_executable(websocket_client_example ${WEBSOCKET_SOURCES} websocket_client_example.cpp)
 target_link_libraries(websocket_client_example pthread OpenSSL::SSL OpenSSL::Crypto)
 
-# Create WebSocket client example 2 (advanced features)
-add_executable(websocket_client_example_2 ${COMMON_SOURCES} websocket_client_example_2.cpp)
-target_link_libraries(websocket_client_example_2 pthread OpenSSL::SSL OpenSSL::Crypto)
-
 # Create WebSocket client stress test (1000 messages)
-add_executable(websocket_client_stress_test ${COMMON_SOURCES} websocket_client_stress_test.cpp)
+add_executable(websocket_client_stress_test ${WEBSOCKET_SOURCES} websocket_client_stress_test.cpp)
 target_link_libraries(websocket_client_stress_test pthread OpenSSL::SSL OpenSSL::Crypto)
 
 # Create WebSocket client test
-add_executable(websocket_test ${COMMON_SOURCES} websocket_test.cpp)
-target_link_libraries(websocket_test pthread OpenSSL::SSL OpenSSL::Crypto) 
+add_executable(websocket_test ${WEBSOCKET_SOURCES} websocket_test.cpp)
+target_link_libraries(websocket_test pthread OpenSSL::SSL OpenSSL::Crypto)
+
+# Create WebSocket server example
+add_executable(websocket_server_example ${WEBSOCKET_SOURCES} websocket_server_example.cpp)
+target_link_libraries(websocket_server_example pthread OpenSSL::SSL OpenSSL::Crypto)

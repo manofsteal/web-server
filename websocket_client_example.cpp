@@ -1,6 +1,6 @@
+#include "log.hpp"
 #include "poller.hpp"
 #include "websocket_client.hpp"
-#include "log.hpp"
 #include <chrono>
 #include <iostream>
 #include <thread>
@@ -20,9 +20,7 @@ int main() {
   LOG("========================");
 
   // Set up event handlers
-  client->onOpen = []() {
-    LOG("WebSocket connection opened!");
-  };
+  client->onOpen = []() { LOG("WebSocket connection opened!"); };
 
   client->onMessage = [](const std::string &message) {
     LOG("Received message: ", message);
@@ -41,7 +39,7 @@ int main() {
   };
 
   // Connect to local WebSocket echo server
-  bool success = client->connect("ws://localhost:8765/");
+  bool success = client->connect("ws://localhost:8765/echo");
 
   if (!success) {
     LOG_ERROR("Failed to connect to WebSocket server");
@@ -53,22 +51,21 @@ int main() {
     if (client->status == WebSocketStatus::OPEN) {
       LOG("Sending test messages...");
       client->sendText("Hello, WebSocket!");
-      
+
       poller.setTimeout(1000, [client, &poller]() {
         client->sendText("This is a test message");
-        
+
         poller.setTimeout(1000, [client, &poller]() {
           client->sendText("Goodbye!");
-          
+
           // Send binary data
-          std::vector<uint8_t> binary_data = {0x48, 0x65, 0x6C, 0x6C, 0x6F}; // "Hello"
+          std::vector<uint8_t> binary_data = {0x48, 0x65, 0x6C, 0x6C,
+                                              0x6F}; // "Hello"
           client->sendBinary(binary_data);
-          
+
           poller.setTimeout(1000, [client, &poller]() {
             client->close(1000, "Normal closure");
-            poller.setTimeout(1000, [&poller]() {
-              poller.stop();
-            });
+            poller.setTimeout(1000, [&poller]() { poller.stop(); });
           });
         });
       });

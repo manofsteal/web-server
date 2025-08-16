@@ -142,7 +142,7 @@ int main(int argc, char *argv[]) {
 
   // Connect to local WebSocket echo server
   LOG("🚀 Connecting to WebSocket server...");
-  bool success = client->connect("ws://localhost:8765/");
+  bool success = client->connect("ws://localhost:8765/echo");
 
   if (!success) {
     LOG_ERROR("Failed to connect to WebSocket server");

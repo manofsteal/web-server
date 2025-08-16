@@ -1,0 +1,446 @@
+#include "websocket_server.hpp"
+#include "log.hpp"
+#include "poller.hpp"
+#include <algorithm>
+#include <cstring>
+#include <iostream>
+#include <openssl/sha.h>
+#include <random>
+#include <sstream>
+
+WebSocketServer *WebSocketServer::fromListener(Listener *listener) {
+  if (listener) {
+    WebSocketServer *server = new WebSocketServer();
+    server->listener = listener;
+
+    listener->onAccept = [server](Socket *socket) {
+      LOG("[WebSocketServer] New connection accepted");
+      server->handleConnection(*socket);
+    };
+
+    return server;
+  }
+  return nullptr;
+}
+
+void WebSocketServer::route(
+    const std::string &path,
+    std::function<void(WebSocketConnection &)> handler) {
+  routes[path] = handler;
+}
+
+void WebSocketServer::handleConnection(Socket &socket) {
+  LOG("[WebSocketServer] Handling new connection from ", socket.remote_addr,
+      ":", socket.remote_port);
+
+  // Create a WebSocketConnection and store it
+  WebSocketConnection *conn = new WebSocketConnection();
+
+  socket.onData = [this, conn](Socket &socket, const BufferView &data) {
+    LOG("[WebSocketServer] Received ", data.size, " bytes from ",
+        socket.remote_addr);
+
+    if (conn && conn->status == WebSocketConnectionStatus::OPEN) {
+      conn->handleSocketData(data);
+    } else {
+      // Handle HTTP upgrade request
+      std::string data_str(data.data, data.size);
+      this->handleHttpRequest(socket, data_str, conn);
+    }
+  };
+}
+
+void WebSocketServer::handleHttpRequest(Socket &socket, const std::string &data,
+                                        WebSocketConnection *conn) {
+  LOG("[WebSocketServer] Processing HTTP request");
+
+  std::string method, path;
+  std::map<std::string, std::string> headers;
+
+  if (!parseHttpRequest(data, method, path, headers)) {
+    LOG_ERROR("[WebSocketServer] Failed to parse HTTP request");
+    socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+    return;
+  }
+
+  LOG("[WebSocketServer] Parsed request: ", method, " ", path);
+
+  if (method == "GET" && isWebSocketUpgrade(headers)) {
+    LOG("[WebSocketServer] WebSocket upgrade request detected");
+    upgradeToWebSocket(socket, path, headers, conn);
+  } else {
+    LOG("[WebSocketServer] Not a WebSocket upgrade request");
+    socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+  }
+}
+
+bool WebSocketServer::parseHttpRequest(
+    const std::string &data, std::string &method, std::string &path,
+    std::map<std::string, std::string> &headers) {
+  std::istringstream stream(data);
+  std::string line;
+
+  // Parse request line
+  if (!std::getline(stream, line)) {
+    return false;
+  }
+
+  std::istringstream request_line(line);
+  std::string version;
+  if (!(request_line >> method >> path >> version)) {
+    return false;
+  }
+
+  // Parse headers
+  while (std::getline(stream, line) && line != "\r" && !line.empty()) {
+    size_t colon_pos = line.find(':');
+    if (colon_pos != std::string::npos) {
+      std::string header_name = line.substr(0, colon_pos);
+      std::string header_value = line.substr(colon_pos + 1);
+
+      // Trim whitespace
+      header_name.erase(0, header_name.find_first_not_of(" \t"));
+      header_name.erase(header_name.find_last_not_of(" \t\r") + 1);
+      header_value.erase(0, header_value.find_first_not_of(" \t"));
+      header_value.erase(header_value.find_last_not_of(" \t\r") + 1);
+
+      // Convert header name to lowercase for case-insensitive comparison
+      std::transform(header_name.begin(), header_name.end(),
+                     header_name.begin(), ::tolower);
+
+      headers[header_name] = header_value;
+    }
+  }
+
+  return true;
+}
+
+bool WebSocketServer::isWebSocketUpgrade(
+    const std::map<std::string, std::string> &headers) {
+  auto upgrade_it = headers.find("upgrade");
+  auto connection_it = headers.find("connection");
+  auto key_it = headers.find("sec-websocket-key");
+  auto version_it = headers.find("sec-websocket-version");
+
+  if (upgrade_it == headers.end() || connection_it == headers.end() ||
+      key_it == headers.end() || version_it == headers.end()) {
+    return false;
+  }
+
+  std::string upgrade = upgrade_it->second;
+  std::string connection = connection_it->second;
+  std::string version = version_it->second;
+
+  std::transform(upgrade.begin(), upgrade.end(), upgrade.begin(), ::tolower);
+  std::transform(connection.begin(), connection.end(), connection.begin(),
+                 ::tolower);
+
+  return upgrade == "websocket" &&
+         connection.find("upgrade") != std::string::npos && version == "13";
+}
+
+std::string WebSocketServer::generateAcceptKey(const std::string &key) {
+  std::string magic_string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+  std::string combined = key + magic_string;
+
+  unsigned char hash[SHA_DIGEST_LENGTH];
+  SHA1(reinterpret_cast<const unsigned char *>(combined.c_str()),
+       combined.length(), hash);
+
+  // Base64 encode using same approach as WebSocket client
+  static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                          "abcdefghijklmnopqrstuvwxyz"
+                                          "0123456789+/";
+
+  std::string result;
+  int val = 0, valb = -6;
+  for (int i = 0; i < SHA_DIGEST_LENGTH; ++i) {
+    val = (val << 8) + hash[i];
+    valb += 8;
+    while (valb >= 0) {
+      result.push_back(base64_chars[(val >> valb) & 0x3F]);
+      valb -= 6;
+    }
+  }
+  if (valb > -6) {
+    result.push_back(base64_chars[((val << 8) >> (valb + 8)) & 0x3F]);
+  }
+  while (result.size() % 4) {
+    result.push_back('=');
+  }
+
+  return result;
+}
+
+std::string
+WebSocketServer::buildHandshakeResponse(const std::string &accept_key) {
+  std::stringstream ss;
+  ss << "HTTP/1.1 101 Switching Protocols\r\n";
+  ss << "Upgrade: websocket\r\n";
+  ss << "Connection: Upgrade\r\n";
+  ss << "Sec-WebSocket-Accept: " << accept_key << "\r\n";
+  ss << "\r\n";
+  return ss.str();
+}
+
+void WebSocketServer::upgradeToWebSocket(
+    Socket &socket, const std::string &path,
+    const std::map<std::string, std::string> &headers,
+    WebSocketConnection *conn) {
+  auto key_it = headers.find("sec-websocket-key");
+  if (key_it == headers.end()) {
+    LOG_ERROR("[WebSocketServer] Missing Sec-WebSocket-Key header");
+    socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+    return;
+  }
+
+  std::string accept_key = generateAcceptKey(key_it->second);
+  std::string response = buildHandshakeResponse(accept_key);
+
+  LOG("[WebSocketServer] Sending handshake response");
+  socket.write(response);
+
+  // Set up WebSocket connection
+  conn->socket = &socket;
+  conn->status = WebSocketConnectionStatus::OPEN;
+  conn->path = path;
+  conn->headers = headers;
+
+  // Set up connection callbacks
+  conn->onMessage = [this, conn](WebSocketConnection &connection,
+                                 const std::string &message) {
+    auto route_it = routes.find(connection.path);
+    if (route_it != routes.end()) {
+      route_it->second(connection);
+    }
+  };
+
+  conn->onBinary = [this, conn](WebSocketConnection &connection,
+                                const std::vector<uint8_t> &data) {
+    auto route_it = routes.find(connection.path);
+    if (route_it != routes.end()) {
+      route_it->second(connection);
+    }
+  };
+
+  conn->onClose = [this](WebSocketConnection &connection, uint16_t code,
+                         const std::string &reason) {
+    LOG("[WebSocketServer] Connection closed: ", code, " - ", reason);
+    onDisconnection(connection);
+  };
+
+  conn->onError = [this](WebSocketConnection &connection,
+                         const std::string &error) {
+    LOG_ERROR("[WebSocketServer] Connection error: ", error);
+  };
+
+  LOG("[WebSocketServer] WebSocket connection established for path: ", path);
+  onConnection(*conn);
+
+  // Call route handler if exists
+  auto route_it = routes.find(path);
+  if (route_it != routes.end()) {
+    route_it->second(*conn);
+  }
+}
+
+// WebSocketConnection methods
+void WebSocketConnection::sendText(const std::string &message) {
+  if (status != WebSocketConnectionStatus::OPEN) {
+    onError(*this, "WebSocket connection is not open");
+    return;
+  }
+
+  std::vector<uint8_t> frame = buildFrame(message, WebSocketOpcode::TEXT);
+  Buffer buffer;
+  buffer.append(reinterpret_cast<const char *>(frame.data()), frame.size());
+  socket->write(buffer);
+}
+
+void WebSocketConnection::sendBinary(const std::vector<uint8_t> &data) {
+  if (status != WebSocketConnectionStatus::OPEN) {
+    onError(*this, "WebSocket connection is not open");
+    return;
+  }
+
+  std::vector<uint8_t> frame = buildFrame(data, WebSocketOpcode::BINARY);
+  Buffer buffer;
+  buffer.append(reinterpret_cast<const char *>(frame.data()), frame.size());
+  socket->write(buffer);
+}
+
+void WebSocketConnection::close(uint16_t code, const std::string &reason) {
+  if (status == WebSocketConnectionStatus::CLOSED) {
+    return;
+  }
+
+  status = WebSocketConnectionStatus::CLOSING;
+
+  // Send close frame
+  std::vector<uint8_t> close_payload;
+  close_payload.push_back((code >> 8) & 0xFF);
+  close_payload.push_back(code & 0xFF);
+
+  for (char c : reason) {
+    close_payload.push_back(static_cast<uint8_t>(c));
+  }
+
+  std::vector<uint8_t> frame =
+      buildFrame(close_payload, WebSocketOpcode::CLOSE);
+  Buffer buffer;
+  buffer.append(reinterpret_cast<const char *>(frame.data()), frame.size());
+  socket->write(buffer);
+
+  status = WebSocketConnectionStatus::CLOSED;
+  onClose(*this, code, reason);
+}
+
+void WebSocketConnection::handleSocketData(const BufferView &data) {
+  LOG("[WebSocketConnection] Processing WebSocket frame data, size: ",
+      data.size);
+  std::vector<uint8_t> frame_data(data.data, data.data + data.size);
+  parseFrame(frame_data);
+}
+
+void WebSocketConnection::parseFrame(const std::vector<uint8_t> &data) {
+  if (data.size() < 2)
+    return;
+
+  WebSocketFrame frame;
+
+  // Parse first byte
+  frame.fin = (data[0] & 0x80) != 0;
+  frame.rsv1 = (data[0] & 0x40) != 0;
+  frame.rsv2 = (data[0] & 0x20) != 0;
+  frame.rsv3 = (data[0] & 0x10) != 0;
+  frame.opcode = static_cast<WebSocketOpcode>(data[0] & 0x0F);
+
+  // Parse second byte
+  frame.masked = (data[1] & 0x80) != 0;
+  uint8_t payload_len = data[1] & 0x7F;
+
+  size_t offset = 2;
+
+  // Parse extended payload length
+  if (payload_len == 126) {
+    if (data.size() < offset + 2)
+      return;
+    frame.payload_length = (data[offset] << 8) | data[offset + 1];
+    offset += 2;
+  } else if (payload_len == 127) {
+    if (data.size() < offset + 8)
+      return;
+    frame.payload_length = 0;
+    for (int i = 0; i < 8; ++i) {
+      frame.payload_length = (frame.payload_length << 8) | data[offset + i];
+    }
+    offset += 8;
+  } else {
+    frame.payload_length = payload_len;
+  }
+
+  // Parse masking key
+  if (frame.masked) {
+    if (data.size() < offset + 4)
+      return;
+    frame.masking_key = (data[offset] << 24) | (data[offset + 1] << 16) |
+                        (data[offset + 2] << 8) | data[offset + 3];
+    offset += 4;
+  }
+
+  // Parse payload
+  if (data.size() < offset + frame.payload_length)
+    return;
+
+  frame.payload.resize(frame.payload_length);
+  for (size_t i = 0; i < frame.payload_length; ++i) {
+    frame.payload[i] = data[offset + i];
+    if (frame.masked) {
+      frame.payload[i] ^= ((frame.masking_key >> ((3 - (i % 4)) * 8)) & 0xFF);
+    }
+  }
+
+  // Handle frame based on opcode
+  switch (frame.opcode) {
+  case WebSocketOpcode::TEXT: {
+    std::string message(frame.payload.begin(), frame.payload.end());
+    onMessage(*this, message);
+    break;
+  }
+  case WebSocketOpcode::BINARY: {
+    onBinary(*this, frame.payload);
+    break;
+  }
+  case WebSocketOpcode::CLOSE: {
+    uint16_t close_code = 1000;
+    std::string close_reason = "";
+
+    if (frame.payload.size() >= 2) {
+      close_code = (frame.payload[0] << 8) | frame.payload[1];
+      if (frame.payload.size() > 2) {
+        close_reason =
+            std::string(frame.payload.begin() + 2, frame.payload.end());
+      }
+    }
+
+    close(close_code, close_reason);
+    break;
+  }
+  case WebSocketOpcode::PING: {
+    // Send pong response
+    std::vector<uint8_t> pong_frame =
+        buildFrame(frame.payload, WebSocketOpcode::PONG);
+    Buffer buffer;
+    buffer.append(reinterpret_cast<const char *>(pong_frame.data()),
+                  pong_frame.size());
+    socket->write(buffer);
+    break;
+  }
+  case WebSocketOpcode::PONG: {
+    // Handle pong (could implement ping/pong tracking here)
+    break;
+  }
+  default:
+    break;
+  }
+}
+
+std::vector<uint8_t> WebSocketConnection::buildFrame(const std::string &message,
+                                                     WebSocketOpcode opcode) {
+  std::vector<uint8_t> data(message.begin(), message.end());
+  return buildFrame(data, opcode);
+}
+
+std::vector<uint8_t>
+WebSocketConnection::buildFrame(const std::vector<uint8_t> &data,
+                                WebSocketOpcode opcode) {
+  std::vector<uint8_t> frame;
+
+  // First byte: FIN + RSV + Opcode
+  uint8_t first_byte = 0x80; // FIN bit set
+  first_byte |= static_cast<uint8_t>(opcode);
+  frame.push_back(first_byte);
+
+  // Second byte: MASK + Payload length (server frames are not masked)
+  uint8_t second_byte = 0x00; // MASK bit not set for server->client
+  if (data.size() < 126) {
+    second_byte |= data.size();
+    frame.push_back(second_byte);
+  } else if (data.size() < 65536) {
+    second_byte |= 126;
+    frame.push_back(second_byte);
+    frame.push_back((data.size() >> 8) & 0xFF);
+    frame.push_back(data.size() & 0xFF);
+  } else {
+    second_byte |= 127;
+    frame.push_back(second_byte);
+    for (int i = 7; i >= 0; --i) {
+      frame.push_back((data.size() >> (i * 8)) & 0xFF);
+    }
+  }
+
+  // Add payload (no masking for server->client)
+  frame.insert(frame.end(), data.begin(), data.end());
+
+  return frame;
+}
