@@ -47,7 +47,7 @@ bool WebSocketClient::connect(const std::string &url) {
   return performHandshake();
 }
 
-void WebSocketClient::send(const std::string &message) {
+void WebSocketClient::sendText(const std::string &message) {
   if (status != WebSocketStatus::OPEN) {
     onError("WebSocket is not open");
     return;

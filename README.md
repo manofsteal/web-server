@@ -286,7 +286,7 @@ int main() {
     // Set up timer to send messages after connection
     poller.setTimeout(1000, [client]() {
         if (client->status == WebSocketStatus::OPEN) {
-            client->send("Hello, WebSocket!");
+            client->sendText("Hello, WebSocket!");
             
             // Send binary data
             std::vector<uint8_t> binary_data = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
@@ -345,7 +345,7 @@ int main() {
 
 #### WebSocketClient Methods
 - `bool connect(const std::string& url)` - Connect to WebSocket server
-- `void send(const std::string& message)` - Send text message
+- `void sendText(const std::string& message)` - Send text message
 - `void sendBinary(const std::vector<uint8_t>& data)` - Send binary data
 - `void close(uint16_t code = 1000, const std::string& reason = "")` - Close connection
 

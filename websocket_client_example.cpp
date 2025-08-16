@@ -52,13 +52,13 @@ int main() {
   poller.setTimeout(2000, [client, &poller]() {
     if (client->status == WebSocketStatus::OPEN) {
       std::cout << "Sending test messages..." << std::endl;
-      client->send("Hello, WebSocket!");
+      client->sendText("Hello, WebSocket!");
       
       poller.setTimeout(1000, [client, &poller]() {
-        client->send("This is a test message");
+        client->sendText("This is a test message");
         
         poller.setTimeout(1000, [client, &poller]() {
-          client->send("Goodbye!");
+          client->sendText("Goodbye!");
           
           // Send binary data
           std::vector<uint8_t> binary_data = {0x48, 0x65, 0x6C, 0x6C, 0x6F}; // "Hello"

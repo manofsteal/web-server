@@ -56,7 +56,7 @@ struct WebSocketClient {
 
   // WebSocket methods
   bool connect(const std::string &url);
-  void send(const std::string &message);
+  void sendText(const std::string &message);
   void sendBinary(const std::vector<uint8_t> &data);
   void close(uint16_t code = 1000, const std::string &reason = "");
 
