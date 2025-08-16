@@ -1,12 +1,12 @@
 #include "websocket_server.hpp"
 #include "log.hpp"
 #include "poller.hpp"
+#include "containers.hpp"
 #include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <openssl/sha.h>
 #include <random>
-#include <sstream>
 
 WebSocketServer *WebSocketServer::fromListener(Listener *listener) {
   if (listener) {
@@ -25,8 +25,8 @@ WebSocketServer *WebSocketServer::fromListener(Listener *listener) {
 }
 
 void WebSocketServer::route(
-    const std::string &path,
-    std::function<void(WebSocketConnection &)> handler) {
+    const String &path,
+    Function<void(WebSocketConnection &)> handler) {
   routes[path] = handler;
 }
 
@@ -46,19 +46,19 @@ void WebSocketServer::handleConnection(Socket &socket) {
       conn->handleSocketData(data);
     } else {
       // Handle HTTP upgrade request
-      std::string data_str(data.data, data.size); // MEMORY ALLOCATION: string copy of incoming data
+      String data_str(data.data, data.size); // MEMORY ALLOCATION: string copy of incoming data
       // OPTIMIZATION STRATEGY: Use string_view to avoid copy, parse directly from BufferView
       this->handleHttpRequest(socket, data_str, conn);
     }
   };
 }
 
-void WebSocketServer::handleHttpRequest(Socket &socket, const std::string &data,
+void WebSocketServer::handleHttpRequest(Socket &socket, const String &data,
                                         WebSocketConnection *conn) {
   LOG("[WebSocketServer] Processing HTTP request");
 
-  std::string method, path; // MEMORY ALLOCATION: string objects for HTTP parsing
-  std::map<std::string, std::string> headers; // MEMORY ALLOCATION: map for headers storage
+  String method, path; // MEMORY ALLOCATION: string objects for HTTP parsing
+  StringMap<String> headers; // MEMORY ALLOCATION: map for headers storage
   // OPTIMIZATION STRATEGY: Use string_view for parsing, pre-allocated header array with fixed keys
 
   if (!parseHttpRequest(data, method, path, headers)) {
@@ -79,10 +79,10 @@ void WebSocketServer::handleHttpRequest(Socket &socket, const std::string &data,
 }
 
 bool WebSocketServer::parseHttpRequest(
-    const std::string &data, std::string &method, std::string &path,
-    std::map<std::string, std::string> &headers) {
-  std::istringstream stream(data); // MEMORY ALLOCATION: stringstream for parsing
-  std::string line; // MEMORY ALLOCATION: string for line parsing
+    const String &data, String &method, String &path,
+    StringMap<String> &headers) {
+  IStringStream stream(data); // MEMORY ALLOCATION: stringstream for parsing
+  String line; // MEMORY ALLOCATION: string for line parsing
   // OPTIMIZATION STRATEGY: Use manual parsing with pointer arithmetic, avoid stringstream overhead
 
   // Parse request line
@@ -90,8 +90,8 @@ bool WebSocketServer::parseHttpRequest(
     return false;
   }
 
-  std::istringstream request_line(line); // MEMORY ALLOCATION: stringstream for request line
-  std::string version; // MEMORY ALLOCATION: string for HTTP version
+  IStringStream request_line(line); // MEMORY ALLOCATION: stringstream for request line
+  String version; // MEMORY ALLOCATION: string for HTTP version
   // OPTIMIZATION STRATEGY: Parse in-place with char* scanning, no string objects needed
   if (!(request_line >> method >> path >> version)) {
     return false;
@@ -100,9 +100,9 @@ bool WebSocketServer::parseHttpRequest(
   // Parse headers
   while (std::getline(stream, line) && line != "\r" && !line.empty()) {
     size_t colon_pos = line.find(':');
-    if (colon_pos != std::string::npos) {
-      std::string header_name = line.substr(0, colon_pos); // MEMORY ALLOCATION: string for header name
-      std::string header_value = line.substr(colon_pos + 1); // MEMORY ALLOCATION: string for header value
+    if (colon_pos != String::npos) {
+      String header_name = line.substr(0, colon_pos); // MEMORY ALLOCATION: string for header name
+      String header_value = line.substr(colon_pos + 1); // MEMORY ALLOCATION: string for header value
       // OPTIMIZATION STRATEGY: Use string_view parsing, compare against known header constants
 
       // Trim whitespace
@@ -123,7 +123,7 @@ bool WebSocketServer::parseHttpRequest(
 }
 
 bool WebSocketServer::isWebSocketUpgrade(
-    const std::map<std::string, std::string> &headers) {
+    const StringMap<String> &headers) {
   auto upgrade_it = headers.find("upgrade");
   auto connection_it = headers.find("connection");
   auto key_it = headers.find("sec-websocket-key");
@@ -134,9 +134,9 @@ bool WebSocketServer::isWebSocketUpgrade(
     return false;
   }
 
-  std::string upgrade = upgrade_it->second; // MEMORY ALLOCATION: string copy
-  std::string connection = connection_it->second; // MEMORY ALLOCATION: string copy
-  std::string version = version_it->second; // MEMORY ALLOCATION: string copy
+  String upgrade = upgrade_it->second; // MEMORY ALLOCATION: string copy
+  String connection = connection_it->second; // MEMORY ALLOCATION: string copy
+  String version = version_it->second; // MEMORY ALLOCATION: string copy
   // OPTIMIZATION STRATEGY: Direct string_view comparison without copies
 
   std::transform(upgrade.begin(), upgrade.end(), upgrade.begin(), ::tolower);
@@ -144,12 +144,12 @@ bool WebSocketServer::isWebSocketUpgrade(
                  ::tolower);
 
   return upgrade == "websocket" &&
-         connection.find("upgrade") != std::string::npos && version == "13";
+         connection.find("upgrade") != String::npos && version == "13";
 }
 
-std::string WebSocketServer::generateAcceptKey(const std::string &key) {
-  std::string magic_string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"; // MEMORY ALLOCATION: string literal copy
-  std::string combined = key + magic_string; // MEMORY ALLOCATION: string concatenation
+String WebSocketServer::generateAcceptKey(const String &key) {
+  String magic_string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"; // MEMORY ALLOCATION: string literal copy
+  String combined = key + magic_string; // MEMORY ALLOCATION: string concatenation
   // OPTIMIZATION STRATEGY: Use const char* for magic string, pre-sized buffer for concatenation
 
   unsigned char hash[SHA_DIGEST_LENGTH];
@@ -157,11 +157,11 @@ std::string WebSocketServer::generateAcceptKey(const std::string &key) {
        combined.length(), hash);
 
   // Base64 encode using same approach as WebSocket client
-  static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  static const String base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                           "abcdefghijklmnopqrstuvwxyz"
                                           "0123456789+/";
 
-  std::string result; // MEMORY ALLOCATION: string for base64 result
+  String result; // MEMORY ALLOCATION: string for base64 result
   // OPTIMIZATION STRATEGY: Pre-allocate fixed-size buffer (28 bytes for SHA1 base64), avoid dynamic growth
   int val = 0, valb = -6;
   for (int i = 0; i < SHA_DIGEST_LENGTH; ++i) {
@@ -182,9 +182,9 @@ std::string WebSocketServer::generateAcceptKey(const std::string &key) {
   return result;
 }
 
-std::string
-WebSocketServer::buildHandshakeResponse(const std::string &accept_key) {
-  std::stringstream ss; // MEMORY ALLOCATION: stringstream for response building
+String
+WebSocketServer::buildHandshakeResponse(const String &accept_key) {
+  StringStream ss; // MEMORY ALLOCATION: stringstream for response building
   // OPTIMIZATION STRATEGY: Use pre-allocated response buffer template, sprintf-style formatting
   ss << "HTTP/1.1 101 Switching Protocols\r\n";
   ss << "Upgrade: websocket\r\n";
@@ -195,8 +195,8 @@ WebSocketServer::buildHandshakeResponse(const std::string &accept_key) {
 }
 
 void WebSocketServer::upgradeToWebSocket(
-    Socket &socket, const std::string &path,
-    const std::map<std::string, std::string> &headers,
+    Socket &socket, const String &path,
+    const StringMap<String> &headers,
     WebSocketConnection *conn) {
   auto key_it = headers.find("sec-websocket-key");
   if (key_it == headers.end()) {
@@ -205,8 +205,8 @@ void WebSocketServer::upgradeToWebSocket(
     return;
   }
 
-  std::string accept_key = generateAcceptKey(key_it->second); // MEMORY ALLOCATION: string for accept key
-  std::string response = buildHandshakeResponse(accept_key); // MEMORY ALLOCATION: string for handshake response
+  String accept_key = generateAcceptKey(key_it->second); // MEMORY ALLOCATION: string for accept key
+  String response = buildHandshakeResponse(accept_key); // MEMORY ALLOCATION: string for handshake response
   // OPTIMIZATION STRATEGY: Generate response directly to socket buffer, avoid intermediate strings
 
   LOG("[WebSocketServer] Sending handshake response");
@@ -221,7 +221,7 @@ void WebSocketServer::upgradeToWebSocket(
 
   // Set up connection callbacks
   conn->onMessage = [this, conn](WebSocketConnection &connection,
-                                 const std::string &message) {
+                                 const String &message) {
     auto route_it = routes.find(connection.path);
     if (route_it != routes.end()) {
       route_it->second(connection);

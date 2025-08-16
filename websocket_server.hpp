@@ -2,10 +2,8 @@
 
 #include "listener.hpp"
 #include "socket.hpp"
+#include "containers.hpp"
 #include <functional>
-#include <map>
-#include <string>
-#include <vector>
 
 enum class WebSocketOpcode {
   CONTINUATION = 0x0,
@@ -27,43 +25,43 @@ struct WebSocketFrame {
   bool masked = false;
   uint64_t payload_length = 0;
   uint32_t masking_key = 0;
-  std::vector<uint8_t> payload = {};
+  Vector<uint8_t> payload = {};
 };
 
 struct WebSocketConnection {
   Socket *socket = nullptr;
   WebSocketConnectionStatus status = WebSocketConnectionStatus::CONNECTING;
-  std::string path = "";
-  std::map<std::string, std::string> headers = {};
+  String path = "";
+  StringMap<String> headers = {};
 
-  using MessageCallback = std::function<void(WebSocketConnection &, const std::string &)>;
-  using BinaryCallback = std::function<void(WebSocketConnection &, const std::vector<uint8_t> &)>;
-  using CloseCallback = std::function<void(WebSocketConnection &, uint16_t code, const std::string &reason)>;
-  using ErrorCallback = std::function<void(WebSocketConnection &, const std::string &)>;
+  using MessageCallback = Function<void(WebSocketConnection &, const String &)>;
+  using BinaryCallback = Function<void(WebSocketConnection &, const Vector<uint8_t> &)>;
+  using CloseCallback = Function<void(WebSocketConnection &, uint16_t code, const String &reason)>;
+  using ErrorCallback = Function<void(WebSocketConnection &, const String &)>;
 
-  MessageCallback onMessage = [](WebSocketConnection &, const std::string &) {};
-  BinaryCallback onBinary = [](WebSocketConnection &, const std::vector<uint8_t> &) {};
-  CloseCallback onClose = [](WebSocketConnection &, uint16_t, const std::string &) {};
-  ErrorCallback onError = [](WebSocketConnection &, const std::string &) {};
+  MessageCallback onMessage = [](WebSocketConnection &, const String &) {};
+  BinaryCallback onBinary = [](WebSocketConnection &, const Vector<uint8_t> &) {};
+  CloseCallback onClose = [](WebSocketConnection &, uint16_t, const String &) {};
+  ErrorCallback onError = [](WebSocketConnection &, const String &) {};
 
   // WebSocket connection methods
-  void sendText(const std::string &message);
-  void sendBinary(const std::vector<uint8_t> &data);
-  void close(uint16_t code = 1000, const std::string &reason = "");
+  void sendText(const String &message);
+  void sendBinary(const Vector<uint8_t> &data);
+  void close(uint16_t code = 1000, const String &reason = "");
 
   // Internal methods
   void handleSocketData(const BufferView &data);
-  void parseFrame(const std::vector<uint8_t> &data);
-  std::vector<uint8_t> buildFrame(const std::string &message, WebSocketOpcode opcode);
-  std::vector<uint8_t> buildFrame(const std::vector<uint8_t> &data, WebSocketOpcode opcode);
+  void parseFrame(const Vector<uint8_t> &data);
+  Vector<uint8_t> buildFrame(const String &message, WebSocketOpcode opcode);
+  Vector<uint8_t> buildFrame(const Vector<uint8_t> &data, WebSocketOpcode opcode);
 };
 
 struct WebSocketServer {
   Listener *listener = nullptr;
-  std::map<std::string, std::function<void(WebSocketConnection &)>> routes = {};
+  HashMap<String, Function<void(WebSocketConnection &)>> routes = {};
 
-  using ConnectionCallback = std::function<void(WebSocketConnection &)>;
-  using DisconnectionCallback = std::function<void(WebSocketConnection &)>;
+  using ConnectionCallback = Function<void(WebSocketConnection &)>;
+  using DisconnectionCallback = Function<void(WebSocketConnection &)>;
 
   ConnectionCallback onConnection = [](WebSocketConnection &) {};
   DisconnectionCallback onDisconnection = [](WebSocketConnection &) {};
@@ -72,14 +70,14 @@ struct WebSocketServer {
   static WebSocketServer *fromListener(Listener *listener);
 
   // Route handling
-  void route(const std::string &path, std::function<void(WebSocketConnection &)> handler);
+  void route(const String &path, Function<void(WebSocketConnection &)> handler);
 
   // Internal methods
   void handleConnection(Socket &socket);
-  void handleHttpRequest(Socket &socket, const std::string &data, WebSocketConnection *conn);
-  bool parseHttpRequest(const std::string &data, std::string &method, std::string &path, std::map<std::string, std::string> &headers);
-  bool isWebSocketUpgrade(const std::map<std::string, std::string> &headers);
-  std::string generateAcceptKey(const std::string &key);
-  std::string buildHandshakeResponse(const std::string &accept_key);
-  void upgradeToWebSocket(Socket &socket, const std::string &path, const std::map<std::string, std::string> &headers, WebSocketConnection *conn);
+  void handleHttpRequest(Socket &socket, const String &data, WebSocketConnection *conn);
+  bool parseHttpRequest(const String &data, String &method, String &path, StringMap<String> &headers);
+  bool isWebSocketUpgrade(const StringMap<String> &headers);
+  String generateAcceptKey(const String &key);
+  String buildHandshakeResponse(const String &accept_key);
+  void upgradeToWebSocket(Socket &socket, const String &path, const StringMap<String> &headers, WebSocketConnection *conn);
 };
