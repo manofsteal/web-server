@@ -57,6 +57,14 @@ target_link_libraries(sequence_resumable_example pthread)
 add_executable(websocket_client_example ${COMMON_SOURCES} websocket_client_example.cpp)
 target_link_libraries(websocket_client_example pthread OpenSSL::SSL OpenSSL::Crypto)
 
+# Create WebSocket client example 2 (advanced features)
+add_executable(websocket_client_example_2 ${COMMON_SOURCES} websocket_client_example_2.cpp)
+target_link_libraries(websocket_client_example_2 pthread OpenSSL::SSL OpenSSL::Crypto)
+
+# Create WebSocket client stress test (1000 messages)
+add_executable(websocket_client_stress_test ${COMMON_SOURCES} websocket_client_stress_test.cpp)
+target_link_libraries(websocket_client_stress_test pthread OpenSSL::SSL OpenSSL::Crypto)
+
 # Create WebSocket client test
 add_executable(websocket_test ${COMMON_SOURCES} websocket_test.cpp)
 target_link_libraries(websocket_test pthread OpenSSL::SSL OpenSSL::Crypto) 

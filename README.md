@@ -68,7 +68,8 @@ make socket_example
 - `ping_pong_client` - Example client that sends "ping" every second
 - `timer_example` - Demonstrates timer functionality
 - `socket_example` - Basic socket creation example
-- `websocket_client_example` - WebSocket client demo connecting to echo server
+- `websocket_client_example` - Basic WebSocket client demo connecting to echo server
+- `websocket_client_example_2` - Advanced WebSocket client with multiple message types and timing
 - `http_server_example` - HTTP server with file serving capabilities
 - `http_client_example_2` - HTTP client making requests
 - `sequence_example` - Sequential task execution demonstration
@@ -302,10 +303,11 @@ int main() {
 
 ### Testing WebSocket Client
 
-1. **Build the WebSocket client:**
+1. **Build the WebSocket clients:**
    ```bash
    cd build
    make websocket_client_example
+   make websocket_client_example_2
    ```
 
 2. **Set up a test server (Python):**
@@ -319,9 +321,13 @@ int main() {
    python websocket_echo_server.py
    ```
 
-3. **Run the client:**
+3. **Run the clients:**
    ```bash
+   # Basic example
    ./websocket_client_example
+   
+   # Advanced example with multiple message types
+   ./websocket_client_example_2
    ```
 
 4. **Expected output:**
@@ -339,6 +345,24 @@ int main() {
    Received message: Echo: Goodbye!
    Received message: Echo: b'Hello'
    WebSocket closed: 1000 - Normal closure
+   ```
+
+   **Advanced Example Output:**
+   ```
+   WebSocket Client Example 2 - Advanced Features
+   ===============================================
+   🚀 Connecting to WebSocket server...
+   🔗 WebSocket connection established!
+   🎯 Starting advanced messaging test...
+   📨 [1003ms] Text message #1: Echo: {"type":"greeting","message":"Hello WebSocket!","timestamp":3607633609}
+   📨 [1504ms] Text message #2: Echo: Special chars: 🚀 ñáéíóú αβγ ∑∞ 中文 русский
+   📨 [2405ms] Text message #3: Echo: b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t'
+   📨 [2405ms] Text message #4: Echo: b'\xaa\xab\xac\xad\xae\xaf\xb0\xb1'
+   📨 [2406ms] Text message #5: Echo: b'\x89PNG\r\n\x1a\n'
+   ✅ Test sequence completed. Closing connection...
+   🔒 [5408ms] Connection closed with code: 1000, reason: Normal test completion
+   📊 Session stats - Sent: 7, Received: 5
+   🏁 WebSocket Client Example 2 completed in 6408ms
    ```
 
 ### WebSocket API
