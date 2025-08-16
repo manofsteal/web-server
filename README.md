@@ -10,6 +10,10 @@ A high-performance, cross-platform C++ web server built with an event-driven arc
 - **Listener support** for accepting incoming connections
 - **Resource pooling** for efficient memory management
 - **Non-blocking I/O** operations
+- **WebSocket client** with full RFC 6455 compliance
+- **HTTP client** for making HTTP requests
+- **Sequence execution** with pause/resume support
+- **SteadyClock timing utilities** for consistent time measurements
 - **Ping-pong example** demonstrating client-server communication
 
 ## Architecture
@@ -64,6 +68,11 @@ make socket_example
 - `ping_pong_client` - Example client that sends "ping" every second
 - `timer_example` - Demonstrates timer functionality
 - `socket_example` - Basic socket creation example
+- `websocket_client_example` - WebSocket client demo connecting to echo server
+- `http_server_example` - HTTP server with file serving capabilities
+- `http_client_example_2` - HTTP client making requests
+- `sequence_example` - Sequential task execution demonstration
+- `sequence_resumable_example` - Pausable/resumable sequence execution
 
 ## Usage Examples
 
@@ -218,6 +227,216 @@ Socket created successfully!
 Socket ID: 0
 Socket file descriptor: 3
 Socket example completed successfully!
+```
+
+## WebSocket Client
+
+The project includes a fully functional WebSocket client that implements RFC 6455 WebSocket protocol.
+
+### WebSocket Features
+
+- **Full RFC 6455 compliance** - Complete WebSocket protocol implementation
+- **Text and binary messages** - Support for both message types
+- **Automatic ping/pong handling** - Built-in keepalive mechanism
+- **Proper handshake** - Sec-WebSocket-Key generation and validation
+- **Frame masking** - Client-to-server frame masking as required by spec
+- **Connection lifecycle management** - Open, message, close event handling
+- **Error handling** - Comprehensive error reporting
+
+### WebSocket Usage
+
+```cpp
+#include "poller.hpp"
+#include "websocket_client.hpp"
+#include <iostream>
+
+int main() {
+    Poller poller;
+    
+    // Create WebSocket client
+    WebSocketClient* client = WebSocketClient::fromSocket(poller.createSocket());
+    
+    // Set up event handlers
+    client->onOpen = []() {
+        std::cout << "WebSocket connection opened!" << std::endl;
+    };
+    
+    client->onMessage = [](const std::string& message) {
+        std::cout << "Received: " << message << std::endl;
+    };
+    
+    client->onBinary = [](const std::vector<uint8_t>& data) {
+        std::cout << "Received binary data: " << data.size() << " bytes" << std::endl;
+    };
+    
+    client->onClose = [](uint16_t code, const std::string& reason) {
+        std::cout << "Connection closed: " << code << " - " << reason << std::endl;
+    };
+    
+    client->onError = [](const std::string& error) {
+        std::cerr << "WebSocket error: " << error << std::endl;
+    };
+    
+    // Connect to WebSocket server
+    if (!client->connect("ws://echo.websocket.org/")) {
+        std::cerr << "Failed to connect" << std::endl;
+        return 1;
+    }
+    
+    // Set up timer to send messages after connection
+    poller.setTimeout(1000, [client]() {
+        if (client->status == WebSocketStatus::OPEN) {
+            client->send("Hello, WebSocket!");
+            
+            // Send binary data
+            std::vector<uint8_t> binary_data = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
+            client->sendBinary(binary_data);
+        }
+    });
+    
+    // Run event loop
+    poller.start();
+    return 0;
+}
+```
+
+### Testing WebSocket Client
+
+1. **Build the WebSocket client:**
+   ```bash
+   cd build
+   make websocket_client_example
+   ```
+
+2. **Set up a test server (Python):**
+   ```bash
+   # Create virtual environment
+   python3 -m venv websocket_test_env
+   source websocket_test_env/bin/activate
+   pip install websockets
+   
+   # Run the included echo server
+   python websocket_echo_server.py
+   ```
+
+3. **Run the client:**
+   ```bash
+   ./websocket_client_example
+   ```
+
+4. **Expected output:**
+   ```
+   WebSocket Client Example
+   ========================
+   [WebSocket] Starting connection to: ws://localhost:8765/
+   [WebSocket] Socket connected successfully
+   [WebSocket] Performing handshake
+   WebSocket connection opened!
+   [WebSocket] Handshake successful, connection is now OPEN
+   Sending test messages...
+   Received message: Echo: Hello, WebSocket!
+   Received message: Echo: This is a test message
+   Received message: Echo: Goodbye!
+   Received message: Echo: b'Hello'
+   WebSocket closed: 1000 - Normal closure
+   ```
+
+### WebSocket API
+
+#### WebSocketClient Methods
+- `bool connect(const std::string& url)` - Connect to WebSocket server
+- `void send(const std::string& message)` - Send text message
+- `void sendBinary(const std::vector<uint8_t>& data)` - Send binary data
+- `void close(uint16_t code = 1000, const std::string& reason = "")` - Close connection
+
+#### WebSocket Event Callbacks
+- `onOpen()` - Called when connection is established
+- `onMessage(const std::string& message)` - Called when text message received
+- `onBinary(const std::vector<uint8_t>& data)` - Called when binary data received
+- `onClose(uint16_t code, const std::string& reason)` - Called when connection closes
+- `onError(const std::string& error)` - Called when error occurs
+
+#### Supported URL Formats
+- `ws://hostname:port/path` - Standard WebSocket connection
+- `wss://hostname:port/path` - Secure WebSocket (if SSL support enabled)
+- Default ports: 80 for ws://, 443 for wss://
+
+## Timing Utilities
+
+### SteadyClock
+
+A wrapper around `std::chrono::steady_clock` providing convenient timing methods:
+
+```cpp
+#include "steady_clock.hpp"
+
+// Get current time
+auto start = SteadyClock::now();
+
+// Add milliseconds to timepoint
+auto future = SteadyClock::addMilliseconds(start, 1000);
+
+// Calculate elapsed time
+int elapsed = SteadyClock::elapsedMs(start);
+
+// Calculate duration between two timepoints
+int duration = SteadyClock::durationMs(start, future);
+```
+
+### SteadyTimer
+
+A simple timer class for measuring elapsed time:
+
+```cpp
+#include "steady_timer.hpp"
+
+SteadyTimer timer;
+
+// Reset timer to current time
+timer.reset();
+
+// Check if specific time has elapsed
+if (timer.isExpiredMs(1000)) {
+    std::cout << "1 second has passed!" << std::endl;
+}
+
+// Get elapsed milliseconds
+int elapsed = timer.getElapsedMs();
+```
+
+## Sequence Execution
+
+The sequence system allows for sequential execution of tasks with timing control:
+
+```cpp
+#include "sequence.hpp"
+
+Poller poller;
+Sequence sequence(poller);
+
+// Add tasks to sequence
+sequence.addTask([]() {
+    std::cout << "Task 1 executed" << std::endl;
+});
+
+sequence.addWait(1000); // Wait 1 second
+
+sequence.addTask([]() {
+    std::cout << "Task 2 executed" << std::endl;
+});
+
+// Wait for condition with timeout
+sequence.addWait([]() -> bool {
+    return some_condition_met();
+}, 100, 5000); // Check every 100ms, timeout after 5s
+
+// Start sequence execution
+sequence.start();
+poller.start();
+
+// Pause/resume support
+sequence.pause();  // Pause at current position
+sequence.resume(); // Resume from where paused
 ```
 
 ## API Reference
