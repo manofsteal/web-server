@@ -10,7 +10,8 @@
 
 WebSocketServer *WebSocketServer::fromListener(Listener *listener) {
   if (listener) {
-    WebSocketServer *server = new WebSocketServer();
+    WebSocketServer *server = new WebSocketServer(); // MEMORY ALLOCATION: WebSocketServer object
+    // OPTIMIZATION STRATEGY: Use object pool or stack allocation for servers
     server->listener = listener;
 
     listener->onAccept = [server](Socket *socket) {
@@ -34,7 +35,8 @@ void WebSocketServer::handleConnection(Socket &socket) {
       ":", socket.remote_port);
 
   // Create a WebSocketConnection and store it
-  WebSocketConnection *conn = new WebSocketConnection();
+  WebSocketConnection *conn = new WebSocketConnection(); // MEMORY ALLOCATION: WebSocketConnection object per connection
+  // OPTIMIZATION STRATEGY: Use connection pool with pre-allocated objects, reuse on disconnect
 
   socket.onData = [this, conn](Socket &socket, const BufferView &data) {
     LOG("[WebSocketServer] Received ", data.size, " bytes from ",
@@ -44,7 +46,8 @@ void WebSocketServer::handleConnection(Socket &socket) {
       conn->handleSocketData(data);
     } else {
       // Handle HTTP upgrade request
-      std::string data_str(data.data, data.size);
+      std::string data_str(data.data, data.size); // MEMORY ALLOCATION: string copy of incoming data
+      // OPTIMIZATION STRATEGY: Use string_view to avoid copy, parse directly from BufferView
       this->handleHttpRequest(socket, data_str, conn);
     }
   };
@@ -54,8 +57,9 @@ void WebSocketServer::handleHttpRequest(Socket &socket, const std::string &data,
                                         WebSocketConnection *conn) {
   LOG("[WebSocketServer] Processing HTTP request");
 
-  std::string method, path;
-  std::map<std::string, std::string> headers;
+  std::string method, path; // MEMORY ALLOCATION: string objects for HTTP parsing
+  std::map<std::string, std::string> headers; // MEMORY ALLOCATION: map for headers storage
+  // OPTIMIZATION STRATEGY: Use string_view for parsing, pre-allocated header array with fixed keys
 
   if (!parseHttpRequest(data, method, path, headers)) {
     LOG_ERROR("[WebSocketServer] Failed to parse HTTP request");
@@ -77,16 +81,18 @@ void WebSocketServer::handleHttpRequest(Socket &socket, const std::string &data,
 bool WebSocketServer::parseHttpRequest(
     const std::string &data, std::string &method, std::string &path,
     std::map<std::string, std::string> &headers) {
-  std::istringstream stream(data);
-  std::string line;
+  std::istringstream stream(data); // MEMORY ALLOCATION: stringstream for parsing
+  std::string line; // MEMORY ALLOCATION: string for line parsing
+  // OPTIMIZATION STRATEGY: Use manual parsing with pointer arithmetic, avoid stringstream overhead
 
   // Parse request line
   if (!std::getline(stream, line)) {
     return false;
   }
 
-  std::istringstream request_line(line);
-  std::string version;
+  std::istringstream request_line(line); // MEMORY ALLOCATION: stringstream for request line
+  std::string version; // MEMORY ALLOCATION: string for HTTP version
+  // OPTIMIZATION STRATEGY: Parse in-place with char* scanning, no string objects needed
   if (!(request_line >> method >> path >> version)) {
     return false;
   }
@@ -95,8 +101,9 @@ bool WebSocketServer::parseHttpRequest(
   while (std::getline(stream, line) && line != "\r" && !line.empty()) {
     size_t colon_pos = line.find(':');
     if (colon_pos != std::string::npos) {
-      std::string header_name = line.substr(0, colon_pos);
-      std::string header_value = line.substr(colon_pos + 1);
+      std::string header_name = line.substr(0, colon_pos); // MEMORY ALLOCATION: string for header name
+      std::string header_value = line.substr(colon_pos + 1); // MEMORY ALLOCATION: string for header value
+      // OPTIMIZATION STRATEGY: Use string_view parsing, compare against known header constants
 
       // Trim whitespace
       header_name.erase(0, header_name.find_first_not_of(" \t"));
@@ -127,9 +134,10 @@ bool WebSocketServer::isWebSocketUpgrade(
     return false;
   }
 
-  std::string upgrade = upgrade_it->second;
-  std::string connection = connection_it->second;
-  std::string version = version_it->second;
+  std::string upgrade = upgrade_it->second; // MEMORY ALLOCATION: string copy
+  std::string connection = connection_it->second; // MEMORY ALLOCATION: string copy
+  std::string version = version_it->second; // MEMORY ALLOCATION: string copy
+  // OPTIMIZATION STRATEGY: Direct string_view comparison without copies
 
   std::transform(upgrade.begin(), upgrade.end(), upgrade.begin(), ::tolower);
   std::transform(connection.begin(), connection.end(), connection.begin(),
@@ -140,8 +148,9 @@ bool WebSocketServer::isWebSocketUpgrade(
 }
 
 std::string WebSocketServer::generateAcceptKey(const std::string &key) {
-  std::string magic_string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-  std::string combined = key + magic_string;
+  std::string magic_string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"; // MEMORY ALLOCATION: string literal copy
+  std::string combined = key + magic_string; // MEMORY ALLOCATION: string concatenation
+  // OPTIMIZATION STRATEGY: Use const char* for magic string, pre-sized buffer for concatenation
 
   unsigned char hash[SHA_DIGEST_LENGTH];
   SHA1(reinterpret_cast<const unsigned char *>(combined.c_str()),
@@ -152,7 +161,8 @@ std::string WebSocketServer::generateAcceptKey(const std::string &key) {
                                           "abcdefghijklmnopqrstuvwxyz"
                                           "0123456789+/";
 
-  std::string result;
+  std::string result; // MEMORY ALLOCATION: string for base64 result
+  // OPTIMIZATION STRATEGY: Pre-allocate fixed-size buffer (28 bytes for SHA1 base64), avoid dynamic growth
   int val = 0, valb = -6;
   for (int i = 0; i < SHA_DIGEST_LENGTH; ++i) {
     val = (val << 8) + hash[i];
@@ -174,7 +184,8 @@ std::string WebSocketServer::generateAcceptKey(const std::string &key) {
 
 std::string
 WebSocketServer::buildHandshakeResponse(const std::string &accept_key) {
-  std::stringstream ss;
+  std::stringstream ss; // MEMORY ALLOCATION: stringstream for response building
+  // OPTIMIZATION STRATEGY: Use pre-allocated response buffer template, sprintf-style formatting
   ss << "HTTP/1.1 101 Switching Protocols\r\n";
   ss << "Upgrade: websocket\r\n";
   ss << "Connection: Upgrade\r\n";
@@ -194,8 +205,9 @@ void WebSocketServer::upgradeToWebSocket(
     return;
   }
 
-  std::string accept_key = generateAcceptKey(key_it->second);
-  std::string response = buildHandshakeResponse(accept_key);
+  std::string accept_key = generateAcceptKey(key_it->second); // MEMORY ALLOCATION: string for accept key
+  std::string response = buildHandshakeResponse(accept_key); // MEMORY ALLOCATION: string for handshake response
+  // OPTIMIZATION STRATEGY: Generate response directly to socket buffer, avoid intermediate strings
 
   LOG("[WebSocketServer] Sending handshake response");
   socket.write(response);
@@ -203,8 +215,9 @@ void WebSocketServer::upgradeToWebSocket(
   // Set up WebSocket connection
   conn->socket = &socket;
   conn->status = WebSocketConnectionStatus::OPEN;
-  conn->path = path;
-  conn->headers = headers;
+  conn->path = path; // MEMORY ALLOCATION: string copy for path storage
+  conn->headers = headers; // MEMORY ALLOCATION: map copy for headers storage
+  // OPTIMIZATION STRATEGY: Store only essential headers (key, protocol), use string_view for path
 
   // Set up connection callbacks
   conn->onMessage = [this, conn](WebSocketConnection &connection,
@@ -251,8 +264,9 @@ void WebSocketConnection::sendText(const std::string &message) {
     return;
   }
 
-  std::vector<uint8_t> frame = buildFrame(message, WebSocketOpcode::TEXT);
-  Buffer buffer;
+  std::vector<uint8_t> frame = buildFrame(message, WebSocketOpcode::TEXT); // MEMORY ALLOCATION: vector for frame data
+  Buffer buffer; // MEMORY ALLOCATION: Buffer object
+  // OPTIMIZATION STRATEGY: Use thread-local frame buffer pool, write directly to socket buffer
   buffer.append(reinterpret_cast<const char *>(frame.data()), frame.size());
   socket->write(buffer);
 }
@@ -263,8 +277,9 @@ void WebSocketConnection::sendBinary(const std::vector<uint8_t> &data) {
     return;
   }
 
-  std::vector<uint8_t> frame = buildFrame(data, WebSocketOpcode::BINARY);
-  Buffer buffer;
+  std::vector<uint8_t> frame = buildFrame(data, WebSocketOpcode::BINARY); // MEMORY ALLOCATION: vector for frame data
+  Buffer buffer; // MEMORY ALLOCATION: Buffer object
+  // OPTIMIZATION STRATEGY: Use thread-local frame buffer pool, avoid vector allocation per message
   buffer.append(reinterpret_cast<const char *>(frame.data()), frame.size());
   socket->write(buffer);
 }
@@ -277,7 +292,8 @@ void WebSocketConnection::close(uint16_t code, const std::string &reason) {
   status = WebSocketConnectionStatus::CLOSING;
 
   // Send close frame
-  std::vector<uint8_t> close_payload;
+  std::vector<uint8_t> close_payload; // MEMORY ALLOCATION: vector for close payload
+  // OPTIMIZATION STRATEGY: Use small stack buffer (close payload is tiny: 2 bytes code + reason)
   close_payload.push_back((code >> 8) & 0xFF);
   close_payload.push_back(code & 0xFF);
 
@@ -286,8 +302,9 @@ void WebSocketConnection::close(uint16_t code, const std::string &reason) {
   }
 
   std::vector<uint8_t> frame =
-      buildFrame(close_payload, WebSocketOpcode::CLOSE);
-  Buffer buffer;
+      buildFrame(close_payload, WebSocketOpcode::CLOSE); // MEMORY ALLOCATION: vector for close frame
+  Buffer buffer; // MEMORY ALLOCATION: Buffer object
+  // OPTIMIZATION STRATEGY: Pre-built close frame template, just patch in code/reason
   buffer.append(reinterpret_cast<const char *>(frame.data()), frame.size());
   socket->write(buffer);
 
@@ -298,7 +315,8 @@ void WebSocketConnection::close(uint16_t code, const std::string &reason) {
 void WebSocketConnection::handleSocketData(const BufferView &data) {
   LOG("[WebSocketConnection] Processing WebSocket frame data, size: ",
       data.size);
-  std::vector<uint8_t> frame_data(data.data, data.data + data.size);
+  std::vector<uint8_t> frame_data(data.data, data.data + data.size); // MEMORY ALLOCATION: vector copy of frame data
+  // OPTIMIZATION STRATEGY: Parse directly from BufferView, no intermediate copy needed
   parseFrame(frame_data);
 }
 
@@ -306,7 +324,8 @@ void WebSocketConnection::parseFrame(const std::vector<uint8_t> &data) {
   if (data.size() < 2)
     return;
 
-  WebSocketFrame frame;
+  WebSocketFrame frame; // MEMORY ALLOCATION: WebSocketFrame struct (contains vector payload)
+  // OPTIMIZATION STRATEGY: Use stack-based frame parser, pre-allocate payload buffer per connection
 
   // Parse first byte
   frame.fin = (data[0] & 0x80) != 0;
@@ -352,7 +371,8 @@ void WebSocketConnection::parseFrame(const std::vector<uint8_t> &data) {
   if (data.size() < offset + frame.payload_length)
     return;
 
-  frame.payload.resize(frame.payload_length);
+  frame.payload.resize(frame.payload_length); // MEMORY ALLOCATION: vector resize for payload
+  // OPTIMIZATION STRATEGY: Use connection-local payload buffer, reuse across frames
   for (size_t i = 0; i < frame.payload_length; ++i) {
     frame.payload[i] = data[offset + i];
     if (frame.masked) {
@@ -363,7 +383,8 @@ void WebSocketConnection::parseFrame(const std::vector<uint8_t> &data) {
   // Handle frame based on opcode
   switch (frame.opcode) {
   case WebSocketOpcode::TEXT: {
-    std::string message(frame.payload.begin(), frame.payload.end());
+    std::string message(frame.payload.begin(), frame.payload.end()); // MEMORY ALLOCATION: string from vector
+    // OPTIMIZATION STRATEGY: Pass payload directly as string_view to avoid copy
     onMessage(*this, message);
     break;
   }
@@ -373,13 +394,15 @@ void WebSocketConnection::parseFrame(const std::vector<uint8_t> &data) {
   }
   case WebSocketOpcode::CLOSE: {
     uint16_t close_code = 1000;
-    std::string close_reason = "";
+    std::string close_reason = ""; // MEMORY ALLOCATION: string for close reason
+    // OPTIMIZATION STRATEGY: Use string_view from payload, only allocate if needed for callback
 
     if (frame.payload.size() >= 2) {
       close_code = (frame.payload[0] << 8) | frame.payload[1];
       if (frame.payload.size() > 2) {
         close_reason =
-            std::string(frame.payload.begin() + 2, frame.payload.end());
+            std::string(frame.payload.begin() + 2, frame.payload.end()); // MEMORY ALLOCATION: string from vector slice
+        // OPTIMIZATION STRATEGY: Use string_view constructor from payload range
       }
     }
 
@@ -389,8 +412,9 @@ void WebSocketConnection::parseFrame(const std::vector<uint8_t> &data) {
   case WebSocketOpcode::PING: {
     // Send pong response
     std::vector<uint8_t> pong_frame =
-        buildFrame(frame.payload, WebSocketOpcode::PONG);
-    Buffer buffer;
+        buildFrame(frame.payload, WebSocketOpcode::PONG); // MEMORY ALLOCATION: vector for pong frame
+    Buffer buffer; // MEMORY ALLOCATION: Buffer object
+    // OPTIMIZATION STRATEGY: Pre-built pong frame header, append payload directly to socket
     buffer.append(reinterpret_cast<const char *>(pong_frame.data()),
                   pong_frame.size());
     socket->write(buffer);
@@ -407,14 +431,16 @@ void WebSocketConnection::parseFrame(const std::vector<uint8_t> &data) {
 
 std::vector<uint8_t> WebSocketConnection::buildFrame(const std::string &message,
                                                      WebSocketOpcode opcode) {
-  std::vector<uint8_t> data(message.begin(), message.end());
+  std::vector<uint8_t> data(message.begin(), message.end()); // MEMORY ALLOCATION: vector from string
+  // OPTIMIZATION STRATEGY: Build frame directly from string data, avoid intermediate vector
   return buildFrame(data, opcode);
 }
 
 std::vector<uint8_t>
 WebSocketConnection::buildFrame(const std::vector<uint8_t> &data,
                                 WebSocketOpcode opcode) {
-  std::vector<uint8_t> frame;
+  std::vector<uint8_t> frame; // MEMORY ALLOCATION: vector for frame construction
+  // OPTIMIZATION STRATEGY: Use thread-local pre-sized frame buffer, calculate exact size upfront
 
   // First byte: FIN + RSV + Opcode
   uint8_t first_byte = 0x80; // FIN bit set
