@@ -35,8 +35,9 @@ struct HttpServer {
   std::map<std::string, std::function<void(HttpRequest &, HttpResponse &)>>
       routes = {};
 
-  // Constructor
-  static HttpServer *fromListener(Listener *listener);
+  // Constructors
+  HttpServer() {}
+  HttpServer(Listener *listener);
 
   // Route registration
   void get(const std::string &path,

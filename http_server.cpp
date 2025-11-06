@@ -4,20 +4,12 @@
 #include <iostream>
 #include <sstream>
 
-HttpServer *HttpServer::fromListener(Listener *listener) {
+HttpServer::HttpServer(Listener *listener) : listener(listener) {
   if (listener) {
-    // Create a new HttpServer object
-    HttpServer *server = new HttpServer();
-    server->listener = listener;
-
-    listener->onAccept = [server](Socket *socket) {
-      server->handleConnection(*socket);
+    listener->onAccept = [this](Socket *socket) {
+      this->handleConnection(*socket);
     };
-
-    return server;
   }
-
-  return nullptr;
 }
 
 void HttpServer::get(

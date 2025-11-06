@@ -1,8 +1,8 @@
 #pragma once
 
+#include "containers.hpp"
 #include "listener.hpp"
 #include "socket.hpp"
-#include "containers.hpp"
 #include <functional>
 
 enum class WebSocketOpcode {
@@ -35,13 +35,17 @@ struct WebSocketConnection {
   StringMap<String> headers = {};
 
   using MessageCallback = Function<void(WebSocketConnection &, const String &)>;
-  using BinaryCallback = Function<void(WebSocketConnection &, const Vector<uint8_t> &)>;
-  using CloseCallback = Function<void(WebSocketConnection &, uint16_t code, const String &reason)>;
+  using BinaryCallback =
+      Function<void(WebSocketConnection &, const Vector<uint8_t> &)>;
+  using CloseCallback = Function<void(WebSocketConnection &, uint16_t code,
+                                      const String &reason)>;
   using ErrorCallback = Function<void(WebSocketConnection &, const String &)>;
 
   MessageCallback onMessage = [](WebSocketConnection &, const String &) {};
-  BinaryCallback onBinary = [](WebSocketConnection &, const Vector<uint8_t> &) {};
-  CloseCallback onClose = [](WebSocketConnection &, uint16_t, const String &) {};
+  BinaryCallback onBinary = [](WebSocketConnection &, const Vector<uint8_t> &) {
+  };
+  CloseCallback onClose = [](WebSocketConnection &, uint16_t, const String &) {
+  };
   ErrorCallback onError = [](WebSocketConnection &, const String &) {};
 
   // WebSocket connection methods
@@ -53,7 +57,8 @@ struct WebSocketConnection {
   void handleSocketData(const BufferView &data);
   void parseFrame(const Vector<uint8_t> &data);
   Vector<uint8_t> buildFrame(const String &message, WebSocketOpcode opcode);
-  Vector<uint8_t> buildFrame(const Vector<uint8_t> &data, WebSocketOpcode opcode);
+  Vector<uint8_t> buildFrame(const Vector<uint8_t> &data,
+                             WebSocketOpcode opcode);
 };
 
 struct WebSocketServer {
@@ -66,18 +71,23 @@ struct WebSocketServer {
   ConnectionCallback onConnection = [](WebSocketConnection &) {};
   DisconnectionCallback onDisconnection = [](WebSocketConnection &) {};
 
-  // Static factory method
-  static WebSocketServer *fromListener(Listener *listener);
+  WebSocketServer() {}
+
+  WebSocketServer(Listener *listener);
 
   // Route handling
   void route(const String &path, Function<void(WebSocketConnection &)> handler);
 
   // Internal methods
   void handleConnection(Socket &socket);
-  void handleHttpRequest(Socket &socket, const String &data, WebSocketConnection *conn);
-  bool parseHttpRequest(const String &data, String &method, String &path, StringMap<String> &headers);
+  void handleHttpRequest(Socket &socket, const String &data,
+                         WebSocketConnection *conn);
+  bool parseHttpRequest(const String &data, String &method, String &path,
+                        StringMap<String> &headers);
   bool isWebSocketUpgrade(const StringMap<String> &headers);
   String generateAcceptKey(const String &key);
   String buildHandshakeResponse(const String &accept_key);
-  void upgradeToWebSocket(Socket &socket, const String &path, const StringMap<String> &headers, WebSocketConnection *conn);
+  void upgradeToWebSocket(Socket &socket, const String &path,
+                          const StringMap<String> &headers,
+                          WebSocketConnection *conn);
 };

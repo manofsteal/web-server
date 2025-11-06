@@ -15,18 +15,18 @@ int main() {
   Poller poller;
 
   Listener *listener = poller.createListener();
-  HttpServer *server = HttpServer::fromListener(listener);
-
-  if (!server) {
-    std::cerr << "Failed to create HTTP server" << std::endl;
+  if (!listener) {
+    std::cerr << "Failed to create listener" << std::endl;
     return 1;
   }
+
+  HttpServer server(listener);
 
   std::cout << "HTTP Server Example" << std::endl;
   std::cout << "===================" << std::endl;
 
   // Register routes
-  server->get("/", [](HttpRequest &request, HttpResponse &response) {
+  server.get("/", [](HttpRequest &request, HttpResponse &response) {
     response.body = "<h1>Welcome to HTTP Server</h1>"
                     "<p>This is the home page.</p>"
                     "<ul>"
@@ -37,7 +37,7 @@ int main() {
     response.headers["Content-Type"] = "text/html";
   });
 
-  server->get("/hello", [](HttpRequest &request, HttpResponse &response) {
+  server.get("/hello", [](HttpRequest &request, HttpResponse &response) {
     response.body = "<h1>Hello, World!</h1>"
                     "<p>Hello from the HTTP server!</p>"
                     "<p>Client: " +
@@ -46,7 +46,7 @@ int main() {
     response.headers["Content-Type"] = "text/html";
   });
 
-  server->get("/json", [](HttpRequest &request, HttpResponse &response) {
+  server.get("/json", [](HttpRequest &request, HttpResponse &response) {
     response.body = "{"
                     "\"message\": \"Hello from JSON API\","
                     "\"timestamp\": \"" +
@@ -60,7 +60,7 @@ int main() {
     response.headers["Content-Type"] = "application/json";
   });
 
-  server->post("/echo", [](HttpRequest &request, HttpResponse &response) {
+  server.post("/echo", [](HttpRequest &request, HttpResponse &response) {
     response.body = "<h1>Echo Response</h1>"
                     "<h2>Request Body:</h2>"
                     "<pre>" +
@@ -78,7 +78,7 @@ int main() {
     response.headers["Content-Type"] = "text/html";
   });
 
-  server->get("/status", [](HttpRequest &request, HttpResponse &response) {
+  server.get("/status", [](HttpRequest &request, HttpResponse &response) {
     response.body = "<h1>Server Status</h1>"
                     "<p>Server is running and healthy!</p>"
                     "<p>Request path: " +

@@ -7,22 +7,31 @@
 #include <string>
 
 int main(int argc, char *argv[]) {
+  if (argc > 1 &&
+      (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help")) {
+    std::cout << "Usage: " << argv[0] << " [host] [port]" << std::endl;
+    std::cout << "  host:           Server host (default: localhost)"
+              << std::endl;
+    std::cout << "  port:           Server port (default: 8765)" << std::endl;
+    return 0;
+  }
+
   Poller poller;
 
   // Test configuration parameters
-  int total_messages = 10000;     // Number of messages
-  int delay_between_messages = 0; // Delay between messages
+  const int total_messages = 10000;     // Number of messages (hardcoded)
+  const int delay_between_messages = 0; // Delay between messages (hardcoded)
+  std::string host = "localhost";       // Server host
+  int port = 8765;                      // Server port
 
   // Parse command line arguments
   if (argc >= 2) {
-    total_messages = std::atoi(argv[1]);
-    if (total_messages <= 0)
-      total_messages = 1000;
+    host = argv[1];
   }
   if (argc >= 3) {
-    delay_between_messages = std::atoi(argv[2]);
-    if (delay_between_messages < 0)
-      delay_between_messages = 0;
+    port = std::atoi(argv[2]);
+    if (port <= 0 || port > 65535)
+      port = 8765;
   }
 
   // Create WebSocket client
@@ -36,6 +45,7 @@ int main(int argc, char *argv[]) {
   LOG("WebSocket Client Stress Test");
   LOG("============================");
   LOG("🎯 Test Parameters:");
+  LOG("   Server: ", host, ":", port);
   LOG("   Total messages: ", total_messages);
   LOG("   Delay between messages: ", delay_between_messages, "ms");
   LOG("   Expected duration: ~",
@@ -98,6 +108,9 @@ int main(int argc, char *argv[]) {
           std::string msg = "Message #" + std::to_string(messages_sent);
           client->sendText(msg);
 
+          client->sendText(msg);
+          LOG("📊 sendText: ", msg);
+
           // Show progress every 100 messages or every 10% of total (whichever
           // is smaller)
           int progress_interval =
@@ -143,14 +156,15 @@ int main(int argc, char *argv[]) {
     LOG_ERROR("❌ WebSocket error: ", error);
   };
 
-  // Connect to local WebSocket echo server
+  // Connect to WebSocket server
+  std::string ws_url = "ws://" + host + ":" + std::to_string(port) + "/";
   LOG("🚀 Connecting to WebSocket server...");
-  // bool success = client->connect("ws://localhost:8765/echo");
-  bool success = client->connect("ws://localhost:8765");
+  bool success = client->connect(ws_url);
 
   if (!success) {
     LOG_ERROR("Failed to connect to WebSocket server");
-    LOG_ERROR("Make sure WebSocket echo server is running on localhost:8765");
+    LOG_ERROR("Make sure WebSocket echo server is running on ", host, ":",
+              port);
     return 1;
   }
 

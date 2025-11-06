@@ -1,6 +1,6 @@
 #include "websocket_client.hpp"
-#include "poller.hpp"
 #include "log.hpp"
+#include "poller.hpp"
 #include <algorithm>
 #include <cstring>
 #include <iostream>
@@ -16,7 +16,8 @@ WebSocketClient *WebSocketClient::fromSocket(Socket *socket) {
     client->socket = socket;
 
     socket->onData = [client](Socket &socket, const BufferView &data) {
-      LOG("[WebSocket] Socket onData callback triggered with ", data.size, " bytes");
+      LOG("[WebSocket] Socket onData callback triggered with ", data.size,
+          " bytes");
       client->handleSocketData(data);
     };
 
@@ -32,7 +33,8 @@ bool WebSocketClient::connect(const std::string &url) {
   status = WebSocketStatus::CONNECTING;
 
   parseUrl(url);
-  LOG("[WebSocket] Parsed URL - Host: ", host, ", Port: ", port, ", Path: ", path);
+  LOG("[WebSocket] Parsed URL - Host: ", host, ", Port: ", port,
+      ", Path: ", path);
 
   // Connect to server
   LOG("[WebSocket] Attempting socket connection to ", host, ":", port);
@@ -150,8 +152,7 @@ std::string WebSocketClient::buildHandshakeRequest() {
   std::stringstream ss;
   ss << "GET " << path << " HTTP/1.1\r\n";
   ss << "Host: " << host;
-  if ((port != 80 && port != 443) || 
-      (port == 443 && protocol != "wss") || 
+  if ((port != 80 && port != 443) || (port == 443 && protocol != "wss") ||
       (port == 80 && protocol == "wss")) {
     ss << ":" << port;
   }
@@ -207,7 +208,7 @@ bool WebSocketClient::parseHandshakeResponse(const std::string &data) {
 
 void WebSocketClient::handleSocketData(const BufferView &data) {
   LOG("[WebSocket] Received ", data.size, " bytes of data");
-  
+
   if (status == WebSocketStatus::CONNECTING) {
     LOG("[WebSocket] Processing handshake response");
     // Handle handshake response
@@ -229,55 +230,81 @@ void WebSocketClient::handleSocketData(const BufferView &data) {
 }
 
 void WebSocketClient::parseFrame(const std::vector<uint8_t> &data) {
-  if (data.size() < 2)
+  LOG("[WebSocket] parseFrame: Starting to parse frame with ", data.size(), " bytes");
+  if (data.size() < 2) {
+    LOG_ERROR("[WebSocket] parseFrame: data.size() < 2");
     return;
+  }
 
   WebSocketFrame frame;
 
   // Parse first byte
+  LOG("[WebSocket] parseFrame: Parsing first byte: 0x", std::hex, (int)data[0], std::dec);
   frame.fin = (data[0] & 0x80) != 0;
   frame.rsv1 = (data[0] & 0x40) != 0;
   frame.rsv2 = (data[0] & 0x20) != 0;
   frame.rsv3 = (data[0] & 0x10) != 0;
   frame.opcode = static_cast<WebSocketOpcode>(data[0] & 0x0F);
+  LOG("[WebSocket] parseFrame: FIN=", frame.fin, ", RSV1=", frame.rsv1, ", RSV2=", frame.rsv2, ", RSV3=", frame.rsv3, ", opcode=", (int)frame.opcode);
 
   // Parse second byte
+  LOG("[WebSocket] parseFrame: Parsing second byte: 0x", std::hex, (int)data[1], std::dec);
   frame.masked = (data[1] & 0x80) != 0;
   uint8_t payload_len = data[1] & 0x7F;
+  LOG("[WebSocket] parseFrame: masked=", frame.masked, ", payload_len=", (int)payload_len);
 
   size_t offset = 2;
 
   // Parse extended payload length
   if (payload_len == 126) {
-    if (data.size() < offset + 2)
+    LOG("[WebSocket] parseFrame: Using 16-bit extended payload length");
+    if (data.size() < offset + 2) {
+      LOG_ERROR("[WebSocket] parseFrame: Early return - insufficient data for 16-bit payload length (need ", offset + 2, ", have ", data.size(), ")");
       return;
+    }
     frame.payload_length = (data[offset] << 8) | data[offset + 1];
+    LOG("[WebSocket] parseFrame: Extended payload length (16-bit): ", frame.payload_length);
     offset += 2;
   } else if (payload_len == 127) {
-    if (data.size() < offset + 8)
+    LOG("[WebSocket] parseFrame: Using 64-bit extended payload length");
+    if (data.size() < offset + 8) {
+      LOG_ERROR("[WebSocket] parseFrame: Early return - insufficient data for 64-bit payload length (need ", offset + 8, ", have ", data.size(), ")");
       return;
+    }
     frame.payload_length = 0;
     for (int i = 0; i < 8; ++i) {
       frame.payload_length = (frame.payload_length << 8) | data[offset + i];
     }
+    LOG("[WebSocket] parseFrame: Extended payload length (64-bit): ", frame.payload_length);
     offset += 8;
   } else {
     frame.payload_length = payload_len;
+    LOG("[WebSocket] parseFrame: Simple payload length: ", frame.payload_length);
   }
 
   // Parse masking key
   if (frame.masked) {
-    if (data.size() < offset + 4)
+    LOG("[WebSocket] parseFrame: Frame is masked, parsing masking key");
+    if (data.size() < offset + 4) {
+      LOG_ERROR("[WebSocket] parseFrame: Early return - insufficient data for masking key (need ", offset + 4, ", have ", data.size(), ")");
       return;
+    }
     frame.masking_key = (data[offset] << 24) | (data[offset + 1] << 16) |
                         (data[offset + 2] << 8) | data[offset + 3];
+    LOG("[WebSocket] parseFrame: Masking key: 0x", std::hex, frame.masking_key, std::dec);
     offset += 4;
+  } else {
+    LOG("[WebSocket] parseFrame: Frame is not masked");
   }
 
   // Parse payload
-  if (data.size() < offset + frame.payload_length)
+  LOG("[WebSocket] parseFrame: Checking payload size - need ", offset + frame.payload_length, " bytes, have ", data.size());
+  if (data.size() < offset + frame.payload_length) {
+    LOG_ERROR("[WebSocket] parseFrame: Early return - insufficient data for payload (need ", offset + frame.payload_length, ", have ", data.size(), ")");
     return;
+  }
 
+  LOG("[WebSocket] parseFrame: Parsing payload of ", frame.payload_length, " bytes");
   frame.payload.resize(frame.payload_length);
   for (size_t i = 0; i < frame.payload_length; ++i) {
     frame.payload[i] = data[offset + i];
@@ -285,15 +312,21 @@ void WebSocketClient::parseFrame(const std::vector<uint8_t> &data) {
       frame.payload[i] ^= ((frame.masking_key >> ((3 - (i % 4)) * 8)) & 0xFF);
     }
   }
+  if (frame.masked) {
+    LOG("[WebSocket] parseFrame: Payload unmasked successfully");
+  }
 
   // Handle frame based on opcode
+  LOG("[WebSocket] parseFrame: Handling opcode ", (int)frame.opcode);
   switch (frame.opcode) {
   case WebSocketOpcode::TEXT: {
     std::string message(frame.payload.begin(), frame.payload.end());
+    LOG("[WebSocket] parseFrame: TEXT message received: \"", message, "\"");
     onMessage(message);
     break;
   }
   case WebSocketOpcode::BINARY: {
+    LOG("[WebSocket] parseFrame: BINARY message received with ", frame.payload.size(), " bytes");
     onBinary(frame.payload);
     break;
   }
@@ -308,11 +341,13 @@ void WebSocketClient::parseFrame(const std::vector<uint8_t> &data) {
             std::string(frame.payload.begin() + 2, frame.payload.end());
       }
     }
+    LOG("[WebSocket] parseFrame: CLOSE frame received - code: ", close_code, ", reason: \"", close_reason, "\"");
 
     close(close_code, close_reason);
     break;
   }
   case WebSocketOpcode::PING: {
+    LOG("[WebSocket] parseFrame: PING frame received with ", frame.payload.size(), " bytes payload");
     // Send pong response
     std::vector<uint8_t> pong_frame =
         buildFrame(frame.payload, WebSocketOpcode::PONG);
@@ -320,15 +355,19 @@ void WebSocketClient::parseFrame(const std::vector<uint8_t> &data) {
     buffer.append(reinterpret_cast<const char *>(pong_frame.data()),
                   pong_frame.size());
     socket->write(buffer);
+    LOG("[WebSocket] parseFrame: PONG response sent");
     break;
   }
   case WebSocketOpcode::PONG: {
+    LOG("[WebSocket] parseFrame: PONG frame received with ", frame.payload.size(), " bytes payload");
     // Handle pong (could implement ping/pong tracking here)
     break;
   }
   default:
+    LOG("[WebSocket] parseFrame: Unknown opcode ", (int)frame.opcode);
     break;
   }
+  LOG("[WebSocket] parseFrame: Frame processing completed");
 }
 
 std::vector<uint8_t> WebSocketClient::buildFrame(const std::string &message,
@@ -369,7 +408,7 @@ WebSocketClient::buildFrame(const std::vector<uint8_t> &data,
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_int_distribution<> dis(0, 255);
-  
+
   uint32_t masking_key = 0;
   for (int i = 0; i < 4; ++i) {
     uint8_t key_byte = dis(gen);
@@ -379,7 +418,8 @@ WebSocketClient::buildFrame(const std::vector<uint8_t> &data,
 
   // Mask and add payload
   for (size_t i = 0; i < data.size(); ++i) {
-    uint8_t masked_byte = data[i] ^ ((masking_key >> ((3 - (i % 4)) * 8)) & 0xFF);
+    uint8_t masked_byte =
+        data[i] ^ ((masking_key >> ((3 - (i % 4)) * 8)) & 0xFF);
     frame.push_back(masked_byte);
   }
 
@@ -397,10 +437,9 @@ std::string WebSocketClient::generateKey() {
   }
 
   // Base64 encode using standard encoding
-  static const std::string base64_chars = 
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    "abcdefghijklmnopqrstuvwxyz"
-    "0123456789+/";
+  static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                          "abcdefghijklmnopqrstuvwxyz"
+                                          "0123456789+/";
 
   std::string result;
   int val = 0, valb = -6;

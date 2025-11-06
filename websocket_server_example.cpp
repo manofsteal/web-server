@@ -7,6 +7,8 @@
 #include <signal.h>
 #include <thread>
 
+// can use websocket_client_test.py to test this
+
 int main() {
 
   LOG("Starting WebSocket echo server on port 8765");
@@ -26,23 +28,19 @@ int main() {
   }
 
   // Create WebSocket server
-  WebSocketServer *server = WebSocketServer::fromListener(listener);
-  if (!server) {
-    LOG_ERROR("Failed to create WebSocket server");
-    return 1;
-  }
+  WebSocketServer server(listener);
 
   // Set up connection handlers
-  server->onConnection = [](WebSocketConnection &conn) {
+  server.onConnection = [](WebSocketConnection &conn) {
     LOG("[Server] New WebSocket connection established for path: ", conn.path);
   };
 
-  server->onDisconnection = [](WebSocketConnection &conn) {
+  server.onDisconnection = [](WebSocketConnection &conn) {
     LOG("[Server] WebSocket connection closed for path: ", conn.path);
   };
 
   // Route for echo functionality
-  server->route("/", [](WebSocketConnection &conn) { // echo
+  server.route("/", [](WebSocketConnection &conn) { // echo
     LOG("[Echo Route] Setting up echo handlers for connection");
 
     conn.onMessage = [](WebSocketConnection &connection,
@@ -59,7 +57,7 @@ int main() {
   });
 
   // Route for chat functionality
-  server->route("/chat", [](WebSocketConnection &conn) {
+  server.route("/chat", [](WebSocketConnection &conn) {
     LOG("[Chat Route] Setting up chat handlers for connection");
 
     conn.onMessage = [](WebSocketConnection &connection,
@@ -70,8 +68,8 @@ int main() {
   });
 
   LOG("WebSocket server started. Routes available:");
-  LOG("  - ws://localhost:8080/echo - Echo server");
-  LOG("  - ws://localhost:8080/chat - Chat server");
+  LOG("  - ws://localhost:8765/ - Echo server");
+  LOG("  - ws://localhost:8765/chat - Chat server");
   LOG("Press Ctrl+C to stop");
 
   // Start poller
