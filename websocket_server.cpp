@@ -8,24 +8,6 @@
 #include <openssl/sha.h>
 #include <random>
 
-// WebSocketServer *WebSocketServer::fromListener(Listener *listener) {
-//   if (listener) {
-
-//     WebSocketServer *server = new WebSocketServer();
-
-//     // OPTIMIZATION STRATEGY: Use object pool or stack allocation for servers
-//     server->listener = listener;
-
-//     listener->onAccept = [server](Socket *socket) {
-//       LOG("[WebSocketServer] New connection accepted");
-//       server->handleConnection(*socket);
-//     };
-
-//     return server;
-//   }
-//   return nullptr;
-// }
-
 WebSocketServer::WebSocketServer(Listener *li) {
 
   if (listener != li) {
