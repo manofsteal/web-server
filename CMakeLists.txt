@@ -23,6 +23,16 @@ set(COMMON_SOURCES
     poller_memory.cpp
 )
 
+# Minimal sources for area allocator tests (no HTTP/WebSocket to avoid AreaAllocator + std::hash issues)
+set(ALLOCATOR_TEST_SOURCES
+    poller.cpp
+    socket.cpp
+    listener.cpp
+    sequence.cpp
+    area_allocator.cpp
+    poller_memory.cpp
+)
+
 # WebSocket source files (require OpenSSL)
 set(WEBSOCKET_SOURCES
     ${COMMON_SOURCES}
@@ -34,8 +44,8 @@ set(WEBSOCKET_SOURCES
 add_executable(timer_example poller.cpp socket.cpp listener.cpp timer_example.cpp)
 target_link_libraries(timer_example pthread)
 
-# Create socket example
-add_executable(socket_example ${COMMON_SOURCES} socket_example.cpp)
+# Create socket example (use minimal sources to avoid WebSocket dependencies)
+add_executable(socket_example ${ALLOCATOR_TEST_SOURCES} socket_example.cpp)
 target_link_libraries(socket_example pthread)
 
 # Create socket examples (minimal dependencies)
@@ -45,13 +55,13 @@ target_link_libraries(ping_pong_server pthread)
 add_executable(ping_pong_client poller.cpp socket.cpp listener.cpp ping_pong_client.cpp)
 target_link_libraries(ping_pong_client pthread)
 
-# Create HTTP client example 2
-add_executable(http_client_example_2 ${COMMON_SOURCES} http_client_example_2.cpp)
+# Create HTTP client example 2 (use minimal sources to avoid WebSocket dependencies)
+add_executable(http_client_example_2 ${ALLOCATOR_TEST_SOURCES} http_client.cpp http_client_example_2.cpp)
 target_link_libraries(http_client_example_2 pthread)
 
-# Create HTTP server example
-add_executable(http_server_example ${COMMON_SOURCES} http_server_example.cpp)
-target_link_libraries(http_server_example pthread)
+# Create HTTP server example (now requires WebSocket sources for upgrade support)
+add_executable(http_server_example ${WEBSOCKET_SOURCES} http_server_example.cpp)
+target_link_libraries(http_server_example pthread OpenSSL::SSL OpenSSL::Crypto)
 
 # Create sequence example
 add_executable(sequence_example poller.cpp socket.cpp listener.cpp sequence.cpp sequence_example.cpp)
@@ -77,17 +87,21 @@ target_link_libraries(websocket_test pthread OpenSSL::SSL OpenSSL::Crypto)
 add_executable(websocket_server_example ${WEBSOCKET_SOURCES} websocket_server_example.cpp)
 target_link_libraries(websocket_server_example pthread OpenSSL::SSL OpenSSL::Crypto)
 
-# Create container test
-add_executable(container_test ${COMMON_SOURCES} container_test.cpp)
+# Create unified HTTP + WebSocket server example
+add_executable(unified_server_example ${WEBSOCKET_SOURCES} unified_server_example.cpp)
+target_link_libraries(unified_server_example pthread OpenSSL::SSL OpenSSL::Crypto)
+
+# Create container test (use minimal sources to avoid WebSocket dependencies)
+add_executable(container_test ${ALLOCATOR_TEST_SOURCES} container_test.cpp)
 target_link_libraries(container_test pthread)
 
-# Create area allocator test
-add_executable(area_allocator_test ${COMMON_SOURCES} area_allocator_test.cpp)
+# Create area allocator test (use minimal sources to avoid WebSocket dependencies)
+add_executable(area_allocator_test ${ALLOCATOR_TEST_SOURCES} area_allocator_test.cpp)
 target_link_libraries(area_allocator_test pthread)
-add_executable(simple_area_test ${COMMON_SOURCES} simple_area_test.cpp)
+add_executable(simple_area_test ${ALLOCATOR_TEST_SOURCES} simple_area_test.cpp)
 target_link_libraries(simple_area_test pthread)
-add_executable(area_allocator_enabled_test ${COMMON_SOURCES} area_allocator_enabled_test.cpp)
+add_executable(area_allocator_enabled_test ${ALLOCATOR_TEST_SOURCES} area_allocator_enabled_test.cpp)
 target_link_libraries(area_allocator_enabled_test pthread)
 target_compile_definitions(area_allocator_enabled_test PRIVATE USE_AREA_ALLOCATORS=1)
-add_executable(make_functions_test ${COMMON_SOURCES} make_functions_test.cpp)
+add_executable(make_functions_test ${ALLOCATOR_TEST_SOURCES} make_functions_test.cpp)
 target_link_libraries(make_functions_test pthread)

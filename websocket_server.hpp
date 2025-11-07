@@ -5,6 +5,9 @@
 #include "socket.hpp"
 #include <functional>
 
+// Forward declaration
+struct HttpServer;
+
 enum class WebSocketOpcode {
   CONTINUATION = 0x0,
   TEXT = 0x1,
@@ -64,6 +67,7 @@ struct WebSocketConnection {
 struct WebSocketServer {
   Listener *listener = nullptr;
   HashMap<String, Function<void(WebSocketConnection &)>> routes = {};
+  HashMap<Socket *, WebSocketConnection> connections = {};
 
   using ConnectionCallback = Function<void(WebSocketConnection &)>;
   using DisconnectionCallback = Function<void(WebSocketConnection &)>;
@@ -71,12 +75,15 @@ struct WebSocketServer {
   ConnectionCallback onConnection = [](WebSocketConnection &) {};
   DisconnectionCallback onDisconnection = [](WebSocketConnection &) {};
 
-  WebSocketServer() {}
-
+  // Constructors - requires either a Listener or HttpServer
   WebSocketServer(Listener *listener);
+  WebSocketServer(HttpServer *http_server);
 
   // Route handling
   void route(const String &path, Function<void(WebSocketConnection &)> handler);
+
+  // Connection management
+  WebSocketConnection &createConnection(Socket &socket);
 
   // Internal methods
   void handleConnection(Socket &socket);

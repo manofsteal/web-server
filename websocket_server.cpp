@@ -1,5 +1,6 @@
 #include "websocket_server.hpp"
 #include "containers.hpp"
+#include "http_server.hpp"
 #include "log.hpp"
 #include "poller.hpp"
 #include <algorithm>
@@ -20,28 +21,58 @@ WebSocketServer::WebSocketServer(Listener *li) {
   }
 }
 
+WebSocketServer::WebSocketServer(HttpServer *http_server) {
+  if (http_server) {
+    // Get the listener from the HTTP server
+    listener = http_server->listener;
+
+    // Enable WebSocket upgrade in the HTTP server
+    http_server->enableWebSocketUpgrade(this);
+
+    LOG("[WebSocketServer] WebSocket server attached to HTTP server, upgrade "
+        "enabled");
+  }
+}
+
 void WebSocketServer::route(const String &path,
                             Function<void(WebSocketConnection &)> handler) {
   routes[path] = handler;
+}
+
+WebSocketConnection &WebSocketServer::createConnection(Socket &socket) {
+  // LOG("[WebSocketServer] Creating new WebSocket connection for socket at ",
+  //     socket.remote_addr, ":", socket.remote_port);
+
+  // Create a new connection and store it in the connections map
+  connections[&socket] = WebSocketConnection();
+  WebSocketConnection &conn = connections[&socket];
+
+  return conn;
 }
 
 void WebSocketServer::handleConnection(Socket &socket) {
   LOG("[WebSocketServer] Handling new connection from ", socket.remote_addr,
       ":", socket.remote_port);
 
-  // Create a WebSocketConnection and store it
-  WebSocketConnection *conn =
-      new WebSocketConnection(); // MEMORY ALLOCATION: WebSocketConnection
-                                 // object per connection
-  // OPTIMIZATION STRATEGY: Use connection pool with pre-allocated objects,
-  // reuse on disconnect
+  createConnection(socket);
 
-  socket.onData = [this, conn](Socket &socket, const BufferView &data) {
+  LOG("[WebSocketServer] Connection stored, total connections: ",
+      connections.size());
+
+  socket.onData = [this, &socket](Socket &sock, const BufferView &data) {
     LOG("[WebSocketServer] Received ", data.size, " bytes from ",
-        socket.remote_addr);
+        sock.remote_addr);
 
-    if (conn && conn->status == WebSocketConnectionStatus::OPEN) {
-      conn->handleSocketData(data);
+    auto it = connections.find(&socket);
+    if (it == connections.end()) {
+      LOG_ERROR("[WebSocketServer] Connection not found for socket");
+      return;
+    }
+
+    WebSocketConnection &conn = it->second;
+
+    if (conn.status == WebSocketConnectionStatus::OPEN) {
+      conn.handleSocketData(data);
     } else {
       // Handle HTTP upgrade request
       String data_str(
@@ -49,7 +80,7 @@ void WebSocketServer::handleConnection(Socket &socket) {
           data.size); // MEMORY ALLOCATION: string copy of incoming data
       // OPTIMIZATION STRATEGY: Use string_view to avoid copy, parse directly
       // from BufferView
-      this->handleHttpRequest(socket, data_str, conn);
+      this->handleHttpRequest(sock, data_str, &conn);
     }
   };
 }
@@ -443,6 +474,8 @@ void WebSocketConnection::parseFrame(const std::vector<uint8_t> &data) {
     }
 
     close(close_code, close_reason);
+
+    LOG("WebSocketOpcode::CLOSE");
     break;
   }
   case WebSocketOpcode::PING: {

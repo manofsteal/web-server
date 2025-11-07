@@ -2,18 +2,22 @@
 """
 Simple WebSocket client to test the C++ WebSocket server example.
 Tests both the echo route (/) and chat route (/chat).
+
+Can test both standalone WebSocket server (port 8765) and unified server (port 8080).
 """
 
 import asyncio
 import websockets
 import sys
+import argparse
 
 
-# This intend to used to test websocket_server_example.cpp
+# This intend to used to test websocket_server_example.cpp (port 8765)
+# or unified_server_example.cpp (port 8080)
 
-async def test_echo_route():
-    """Test the echo route at ws://localhost:8765/"""
-    uri = "ws://localhost:8765/"
+async def test_echo_route(port=8765, path="/"):
+    """Test the echo route"""
+    uri = f"ws://localhost:{port}{path}"
     print(f"\n=== Testing Echo Route: {uri} ===")
 
     try:
@@ -64,9 +68,9 @@ async def test_echo_route():
         sys.exit(1)
 
 
-async def test_chat_route():
-    """Test the chat route at ws://localhost:8765/chat"""
-    uri = "ws://localhost:8765/chat"
+async def test_chat_route(port=8765, path="/chat"):
+    """Test the chat route"""
+    uri = f"ws://localhost:{port}{path}"
     print(f"\n=== Testing Chat Route: {uri} ===")
 
     try:
@@ -101,73 +105,133 @@ async def test_chat_route():
         sys.exit(1)
 
 
-async def interactive_mode(route="/"):
-    """Interactive mode to send custom messages"""
-    uri = f"ws://localhost:8765{route}"
-    print(f"\n=== Interactive Mode: {uri} ===")
-    print("Type messages to send. Press Ctrl+C or type 'quit' to exit.\n")
+async def test_multiple_connections(port=8765, path="/", num_connections=10, messages_per_conn=5):
+    """Test multiple concurrent WebSocket connections"""
+    uri = f"ws://localhost:{port}{path}"
+    print(f"\n=== Testing Multiple Connections: {uri} ===")
+    print(f"Creating {num_connections} concurrent connections...")
+    print(f"Each connection will send {messages_per_conn} messages\n")
 
-    try:
-        async with websockets.connect(uri) as websocket:
-            print("✓ Connected! Start typing messages...\n")
+    import time
+    start_time = time.time()
 
-            while True:
-                # Read user input
-                message = await asyncio.get_event_loop().run_in_executor(
-                    None, input, "You: "
-                )
+    async def handle_single_connection(conn_id):
+        """Handle a single connection"""
+        try:
+            async with websockets.connect(uri) as websocket:
+                print(f"✓ Connection {conn_id}: Connected")
 
-                if message.lower() in ['quit', 'exit', 'q']:
-                    print("Closing connection...")
-                    break
+                messages_sent = 0
+                messages_received = 0
 
-                # Send message
-                await websocket.send(message)
+                for i in range(messages_per_conn):
+                    msg = f"Connection-{conn_id} Message-{i+1}"
+                    await websocket.send(msg)
+                    messages_sent += 1
 
-                # Receive response
-                response = await websocket.recv()
-                print(f"Server: {response}\n")
+                    response = await websocket.recv()
+                    messages_received += 1
 
-    except KeyboardInterrupt:
-        print("\nExiting...")
-    except ConnectionRefusedError:
-        print("✗ Connection refused. Is the server running on port 8765?")
-        sys.exit(1)
-    except Exception as e:
-        print(f"✗ Error: {e}")
-        sys.exit(1)
+                    # Verify echo response
+                    if response == msg:
+                        print(f"  Connection {conn_id}: Message {i+1}/{messages_per_conn} ✓")
+                    else:
+                        print(f"  Connection {conn_id}: Message {i+1}/{messages_per_conn} ✗ (Expected: {msg}, Got: {response})")
+
+                print(f"✓ Connection {conn_id}: Completed ({messages_sent} sent, {messages_received} received)")
+                return True
+
+        except Exception as e:
+            print(f"✗ Connection {conn_id}: Error - {e}")
+            return False
+
+    # Create all connections concurrently
+    tasks = [handle_single_connection(i+1) for i in range(num_connections)]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Calculate statistics
+    elapsed_time = time.time() - start_time
+    successful = sum(1 for r in results if r is True)
+    failed = num_connections - successful
+    total_messages = num_connections * messages_per_conn
+
+    print(f"\n{'='*60}")
+    print("Multiple Connection Test Results:")
+    print(f"{'='*60}")
+    print(f"  Total connections:      {num_connections}")
+    print(f"  Successful:             {successful}")
+    print(f"  Failed:                 {failed}")
+    print(f"  Messages per connection: {messages_per_conn}")
+    print(f"  Total messages sent:    {total_messages}")
+    print(f"  Total messages received: {successful * messages_per_conn}")
+    print(f"  Time elapsed:           {elapsed_time:.2f}s")
+    print(f"  Messages per second:    {total_messages / elapsed_time:.2f}")
+    print(f"{'='*60}")
+
+    if successful == num_connections:
+        print("✓ All connections completed successfully!")
+    else:
+        print(f"✗ {failed} connection(s) failed")
 
 
 async def main():
     """Main function to run all tests"""
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--interactive" or sys.argv[1] == "-i":
-            route = sys.argv[2] if len(sys.argv) > 2 else "/"
-            await interactive_mode(route)
-            return
-        elif sys.argv[1] == "--help" or sys.argv[1] == "-h":
-            print("Usage:")
-            print("  python websocket_client_test.py           # Run all automated tests")
-            print("  python websocket_client_test.py -i [/]    # Interactive mode for echo route")
-            print("  python websocket_client_test.py -i /chat  # Interactive mode for chat route")
-            return
+    parser = argparse.ArgumentParser(
+        description='WebSocket client test suite for C++ WebSocket server',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  %(prog)s                           # Test standalone server (port 8765, path /)
+  %(prog)s -p 8080                    # Test on port 8080
+  %(prog)s -p 8080 --path /ws/echo    # Test on port 8080 with path /ws/echo
+  %(prog)s -m                         # Test 10 concurrent connections
+  %(prog)s -m -c 50 -n 10             # Test 50 connections, 10 messages each
+  %(prog)s -m -c 20 -p 8080           # Test 20 connections on port 8080
+  %(prog)s -m -c 100 -p 9876          # Test 100 connections on port 9876
+        '''
+    )
 
-    # Run automated tests
-    print("=" * 60)
-    print("WebSocket Client Test Suite")
-    print("=" * 60)
+    parser.add_argument('-p', '--port', type=int, default=8765, metavar='PORT',
+                        help='Server port (default: 8765)')
+    parser.add_argument('--path', type=str, default='/', metavar='PATH',
+                        help='WebSocket path (default: /)')
+    parser.add_argument('-m', '--multi', action='store_true',
+                        help='Test multiple concurrent connections')
+    parser.add_argument('-c', '--connections', type=int, default=10, metavar='N',
+                        help='Number of concurrent connections (default: 10, use with -m)')
+    parser.add_argument('-n', '--messages', type=int, default=5, metavar='M',
+                        help='Messages per connection (default: 5, use with -m)')
 
-    await test_echo_route()
-    await asyncio.sleep(0.5)  # Small delay between tests
+    args = parser.parse_args()
 
-    await test_chat_route()
+    # Use specified port and path
+    port = args.port
+    echo_path = args.path
+    chat_path = "/chat" if args.path == "/" else args.path
 
-    print("\n" + "=" * 60)
-    print("All tests completed!")
-    print("=" * 60)
-    print("\nTip: Run with -i flag for interactive mode:")
-    print("  python websocket_client_test.py -i      # Echo server")
-    print("  python websocket_client_test.py -i /chat # Chat server")
+    # Run appropriate test mode
+    if args.multi:
+        # Multiple connection test
+        print(f"Testing on port {port}")
+        await test_multiple_connections(port, echo_path, args.connections, args.messages)
+    else:
+        # Run automated tests
+        print("=" * 60)
+        print(f"WebSocket Client Test Suite - Port {port}")
+        print("=" * 60)
+
+        await test_echo_route(port, echo_path)
+        await asyncio.sleep(0.5)  # Small delay between tests
+
+        await test_chat_route(port, chat_path)
+
+        print("\n" + "=" * 60)
+        print("All tests completed!")
+        print("=" * 60)
+        print("\nTip: Run with -m flag for multiple connection test:")
+        print(f"  python websocket_client_test.py -m -c 20")
+        print("\nOr test on different port:")
+        print(f"  python websocket_client_test.py -p 8080 --path /ws/echo")
 
 
 if __name__ == "__main__":

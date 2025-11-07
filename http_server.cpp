@@ -1,4 +1,5 @@
 #include "http_server.hpp"
+#include "websocket_server.hpp"
 #include "poller.hpp"
 #include <algorithm>
 #include <iostream>
@@ -10,6 +11,10 @@ HttpServer::HttpServer(Listener *listener) : listener(listener) {
       this->handleConnection(*socket);
     };
   }
+}
+
+void HttpServer::enableWebSocketUpgrade(WebSocketServer *ws_server) {
+  websocket_server = ws_server;
 }
 
 void HttpServer::get(
@@ -39,6 +44,18 @@ void HttpServer::delete_(
 void HttpServer::handleConnection(Socket &socket) {
   socket.onData = [this](Socket &socket, const BufferView &data) {
     std::string data_str(data.data, data.size);
+
+    // Check if this might be a WebSocket upgrade early (before full parsing)
+    if (websocket_server && data_str.find("Upgrade: websocket") != std::string::npos) {
+      // Delegate to WebSocket server's handleConnection which will handle the upgrade
+      websocket_server->handleConnection(socket);
+      // Trigger the WebSocket handler with the data we received
+      if (socket.onData) {
+        socket.onData(socket, data);
+      }
+      return;
+    }
+
     handleRequest(socket, data_str);
   };
 }
@@ -185,4 +202,35 @@ std::string HttpServer::findRoute(const std::string &path, HttpMethod method) {
   }
 
   return method_str + ":" + path;
+}
+
+bool HttpServer::isWebSocketUpgrade(const HttpRequest &request) {
+  // Check if this is a GET request with WebSocket upgrade headers
+  if (request.method != HttpMethod::GET) {
+    return false;
+  }
+
+  auto upgrade_it = request.headers.find("Upgrade");
+  auto connection_it = request.headers.find("Connection");
+  auto key_it = request.headers.find("Sec-WebSocket-Key");
+  auto version_it = request.headers.find("Sec-WebSocket-Version");
+
+  if (upgrade_it == request.headers.end() ||
+      connection_it == request.headers.end() ||
+      key_it == request.headers.end() || version_it == request.headers.end()) {
+    return false;
+  }
+
+  // Check if Upgrade header contains "websocket" (case-insensitive)
+  std::string upgrade = upgrade_it->second;
+  std::transform(upgrade.begin(), upgrade.end(), upgrade.begin(), ::tolower);
+
+  // Check if Connection header contains "upgrade" (case-insensitive)
+  std::string connection = connection_it->second;
+  std::transform(connection.begin(), connection.end(), connection.begin(),
+                 ::tolower);
+
+  // Check WebSocket version is 13
+  return upgrade == "websocket" && connection.find("upgrade") != std::string::npos &&
+         version_it->second == "13";
 }

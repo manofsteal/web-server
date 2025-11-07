@@ -6,6 +6,9 @@
 #include <map>
 #include <string>
 
+// Forward declaration
+struct WebSocketServer;
+
 enum class HttpMethod { GET, POST, PUT, DELETE, HEAD, OPTIONS };
 
 enum class HttpStatus { PENDING, COMPLETED, ERROR };
@@ -35,9 +38,13 @@ struct HttpServer {
   std::map<std::string, std::function<void(HttpRequest &, HttpResponse &)>>
       routes = {};
 
-  // Constructors
-  HttpServer() {}
+  WebSocketServer *websocket_server = nullptr;
+
+  // Constructor - requires a Listener
   HttpServer(Listener *listener);
+
+  // WebSocket upgrade support
+  void enableWebSocketUpgrade(WebSocketServer *ws_server);
 
   // Route registration
   void get(const std::string &path,
@@ -55,4 +62,5 @@ struct HttpServer {
   void parseRequest(const std::string &data, HttpRequest &request);
   std::string buildResponse(const HttpResponse &response);
   std::string findRoute(const std::string &path, HttpMethod method);
+  bool isWebSocketUpgrade(const HttpRequest &request);
 };
