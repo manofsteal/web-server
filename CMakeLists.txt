@@ -9,99 +9,99 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(OpenSSL REQUIRED)
 
 # Add include directories
-include_directories(.)
+include_directories(include)
 
 # Common source files (without WebSocket components that require OpenSSL)
 set(COMMON_SOURCES
-    poller.cpp
-    socket.cpp
-    listener.cpp
-    http_client.cpp
-    http_server.cpp
-    sequence.cpp
-    area_allocator.cpp
-    poller_memory.cpp
+    src/websrv/poller.cpp
+    src/websrv/socket.cpp
+    src/websrv/listener.cpp
+    src/websrv/http_client.cpp
+    src/websrv/http_server.cpp
+    src/websrv/sequence.cpp
+    src/websrv/area_allocator.cpp
+    src/websrv/poller_memory.cpp
 )
 
 # Minimal sources for area allocator tests (no HTTP/WebSocket to avoid AreaAllocator + std::hash issues)
 set(ALLOCATOR_TEST_SOURCES
-    poller.cpp
-    socket.cpp
-    listener.cpp
-    sequence.cpp
-    area_allocator.cpp
-    poller_memory.cpp
+    src/websrv/poller.cpp
+    src/websrv/socket.cpp
+    src/websrv/listener.cpp
+    src/websrv/sequence.cpp
+    src/websrv/area_allocator.cpp
+    src/websrv/poller_memory.cpp
 )
 
 # WebSocket source files (require OpenSSL)
 set(WEBSOCKET_SOURCES
     ${COMMON_SOURCES}
-    websocket_client.cpp
-    websocket_server.cpp
+    src/websrv/websocket_client.cpp
+    src/websrv/websocket_server.cpp
 )
 
-# Create timer example (minimal dependencies)
-add_executable(timer_example poller.cpp socket.cpp listener.cpp timer_example.cpp)
-target_link_libraries(timer_example pthread)
+# Create timer test (minimal dependencies)
+add_executable(timer_test src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp test/timer_test.cpp)
+target_link_libraries(timer_test pthread)
 
-# Create socket example (use minimal sources to avoid WebSocket dependencies)
-add_executable(socket_example ${ALLOCATOR_TEST_SOURCES} socket_example.cpp)
-target_link_libraries(socket_example pthread)
+# Create socket test (use minimal sources to avoid WebSocket dependencies)
+add_executable(socket_test ${ALLOCATOR_TEST_SOURCES} test/socket_test.cpp)
+target_link_libraries(socket_test pthread)
 
-# Create socket examples (minimal dependencies)
-add_executable(ping_pong_server poller.cpp socket.cpp listener.cpp ping_pong_server.cpp)
-target_link_libraries(ping_pong_server pthread)
+# Create socket tests (minimal dependencies)
+add_executable(ping_pong_server_test src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp test/ping_pong_server_test.cpp)
+target_link_libraries(ping_pong_server_test pthread)
 
-add_executable(ping_pong_client poller.cpp socket.cpp listener.cpp ping_pong_client.cpp)
-target_link_libraries(ping_pong_client pthread)
+add_executable(ping_pong_client_test src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp test/ping_pong_client_test.cpp)
+target_link_libraries(ping_pong_client_test pthread)
 
-# Create HTTP client example 2 (use minimal sources to avoid WebSocket dependencies)
-add_executable(http_client_example_2 ${ALLOCATOR_TEST_SOURCES} http_client.cpp http_client_example_2.cpp)
-target_link_libraries(http_client_example_2 pthread)
+# Create HTTP client test 2 (use minimal sources to avoid WebSocket dependencies)
+add_executable(http_client_2_test ${ALLOCATOR_TEST_SOURCES} src/websrv/http_client.cpp test/http_client_2_test.cpp)
+target_link_libraries(http_client_2_test pthread)
 
-# Create HTTP server example (now requires WebSocket sources for upgrade support)
-add_executable(http_server_example ${WEBSOCKET_SOURCES} http_server_example.cpp)
-target_link_libraries(http_server_example pthread OpenSSL::SSL OpenSSL::Crypto)
+# Create HTTP server test (now requires WebSocket sources for upgrade support)
+add_executable(http_server_test ${WEBSOCKET_SOURCES} test/http_server_test.cpp)
+target_link_libraries(http_server_test pthread OpenSSL::SSL OpenSSL::Crypto)
 
-# Create sequence example
-add_executable(sequence_example poller.cpp socket.cpp listener.cpp sequence.cpp sequence_example.cpp)
-target_link_libraries(sequence_example pthread)
+# Create sequence test
+add_executable(sequence_test src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp src/websrv/sequence.cpp test/sequence_test.cpp)
+target_link_libraries(sequence_test pthread)
 
-# Create sequence resumable example
-add_executable(sequence_resumable_example poller.cpp socket.cpp listener.cpp sequence.cpp sequence_resumable_example.cpp)
-target_link_libraries(sequence_resumable_example pthread)
-
-# Create WebSocket client example
-add_executable(websocket_client_example ${WEBSOCKET_SOURCES} websocket_client_example.cpp)
-target_link_libraries(websocket_client_example pthread OpenSSL::SSL OpenSSL::Crypto)
-
-# Create WebSocket client stress test (1000 messages)
-add_executable(websocket_client_stress_test ${WEBSOCKET_SOURCES} websocket_client_stress_test.cpp)
-target_link_libraries(websocket_client_stress_test pthread OpenSSL::SSL OpenSSL::Crypto)
+# Create sequence resumable test
+add_executable(sequence_resumable_test src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp src/websrv/sequence.cpp test/sequence_resumable_test.cpp)
+target_link_libraries(sequence_resumable_test pthread)
 
 # Create WebSocket client test
-add_executable(websocket_test ${WEBSOCKET_SOURCES} websocket_test.cpp)
+add_executable(websocket_client_test ${WEBSOCKET_SOURCES} test/websocket_client_test.cpp)
+target_link_libraries(websocket_client_test pthread OpenSSL::SSL OpenSSL::Crypto)
+
+# Create WebSocket client stress test (1000 messages)
+add_executable(websocket_client_stress_test ${WEBSOCKET_SOURCES} test/websocket_client_stress_test.cpp)
+target_link_libraries(websocket_client_stress_test pthread OpenSSL::SSL OpenSSL::Crypto)
+
+# Create WebSocket test
+add_executable(websocket_test ${WEBSOCKET_SOURCES} test/websocket_test.cpp)
 target_link_libraries(websocket_test pthread OpenSSL::SSL OpenSSL::Crypto)
 
-# Create WebSocket server example
-add_executable(websocket_server_example ${WEBSOCKET_SOURCES} websocket_server_example.cpp)
-target_link_libraries(websocket_server_example pthread OpenSSL::SSL OpenSSL::Crypto)
+# Create WebSocket server test
+add_executable(websocket_server_test ${WEBSOCKET_SOURCES} test/websocket_server_test.cpp)
+target_link_libraries(websocket_server_test pthread OpenSSL::SSL OpenSSL::Crypto)
 
-# Create unified HTTP + WebSocket server example
-add_executable(unified_server_example ${WEBSOCKET_SOURCES} unified_server_example.cpp)
-target_link_libraries(unified_server_example pthread OpenSSL::SSL OpenSSL::Crypto)
+# Create unified HTTP + WebSocket server test
+add_executable(unified_server_test ${WEBSOCKET_SOURCES} test/unified_server_test.cpp)
+target_link_libraries(unified_server_test pthread OpenSSL::SSL OpenSSL::Crypto)
 
 # Create container test (use minimal sources to avoid WebSocket dependencies)
-add_executable(container_test ${ALLOCATOR_TEST_SOURCES} container_test.cpp)
+add_executable(container_test ${ALLOCATOR_TEST_SOURCES} test/container_test.cpp)
 target_link_libraries(container_test pthread)
 
 # Create area allocator test (use minimal sources to avoid WebSocket dependencies)
-add_executable(area_allocator_test ${ALLOCATOR_TEST_SOURCES} area_allocator_test.cpp)
+add_executable(area_allocator_test ${ALLOCATOR_TEST_SOURCES} test/area_allocator_test.cpp)
 target_link_libraries(area_allocator_test pthread)
-add_executable(simple_area_test ${ALLOCATOR_TEST_SOURCES} simple_area_test.cpp)
+add_executable(simple_area_test ${ALLOCATOR_TEST_SOURCES} test/simple_area_test.cpp)
 target_link_libraries(simple_area_test pthread)
-add_executable(area_allocator_enabled_test ${ALLOCATOR_TEST_SOURCES} area_allocator_enabled_test.cpp)
+add_executable(area_allocator_enabled_test ${ALLOCATOR_TEST_SOURCES} test/area_allocator_enabled_test.cpp)
 target_link_libraries(area_allocator_enabled_test pthread)
 target_compile_definitions(area_allocator_enabled_test PRIVATE USE_AREA_ALLOCATORS=1)
-add_executable(make_functions_test ${ALLOCATOR_TEST_SOURCES} make_functions_test.cpp)
+add_executable(make_functions_test ${ALLOCATOR_TEST_SOURCES} test/make_functions_test.cpp)
 target_link_libraries(make_functions_test pthread)
