@@ -6,6 +6,8 @@
 #include "websrv/log.hpp"
 #include <iostream>
 
+using namespace websrv;
+
 int main() {
     LOG("Area Allocator Integration Test (ENABLED)");
     LOG("==========================================");

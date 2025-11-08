@@ -5,6 +5,8 @@
 #include <string>
 #include <thread>
 
+using namespace websrv;
+
 int main() {
   Poller poller;
   int ping_counter = 0;

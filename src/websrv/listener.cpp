@@ -3,6 +3,8 @@
 #include <arpa/inet.h>
 #include <iostream>
 
+namespace websrv {
+
 Listener::Listener() : Pollable() {
   type = PollableType::LISTENER;
   port = 0;
@@ -73,3 +75,5 @@ void Listener::stop() {
     file_descriptor = -1;
   }
 }
+
+} // namespace websrv

@@ -1,6 +1,8 @@
 #pragma once
 #include <cstddef>
 
+namespace websrv {
+
 struct BufferView {
   char* data;
   size_t size;
@@ -22,3 +24,5 @@ struct BufferView {
   char* end() { return data + size; }
   const char* end() const { return data + size; }
 };
+
+} // namespace websrv

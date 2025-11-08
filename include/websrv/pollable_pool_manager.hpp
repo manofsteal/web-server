@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <map>
 
+namespace websrv {
+
 struct PollablePoolManager {
   void stop() {}
 
@@ -14,3 +16,5 @@ struct PollablePoolManager {
   PollablePool<Socket> sockets = PollablePool<Socket>{};
   PollablePool<Listener> listeners = PollablePool<Listener>{};
 };
+
+} // namespace websrv

@@ -5,6 +5,8 @@
 #include "websrv/socket.hpp"
 #include <functional>
 
+namespace websrv {
+
 // Forward declaration
 struct HttpServer;
 
@@ -98,3 +100,5 @@ struct WebSocketServer {
                           const StringMap<String> &headers,
                           WebSocketConnection *conn);
 };
+
+} // namespace websrv

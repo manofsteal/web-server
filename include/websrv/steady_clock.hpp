@@ -1,6 +1,8 @@
 #pragma once
 #include <chrono>
 
+namespace websrv {
+
 struct SteadyClock {
     using Clock = std::chrono::steady_clock;
     using TimePoint = Clock::time_point;
@@ -21,4 +23,6 @@ struct SteadyClock {
     static int durationMs(const TimePoint& from, const TimePoint& to) {
         return std::chrono::duration_cast<std::chrono::milliseconds>(to - from).count();
     }
-}; 
+};
+
+} // namespace websrv 

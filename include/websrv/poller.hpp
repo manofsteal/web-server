@@ -16,6 +16,8 @@
 #include <unistd.h> // For pipe() and close()
 #include <vector>
 
+namespace websrv {
+
 struct Poller {
   struct PollEntry {
     Pollable *pollable = nullptr;
@@ -110,3 +112,5 @@ protected:
   bool hasNotificationPipe() const;
   void drainNotificationPipe();
 };
+
+} // namespace websrv

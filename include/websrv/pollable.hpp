@@ -2,6 +2,8 @@
 #include <cstdint>
 #include <functional>
 
+namespace websrv {
+
 using PollableID = uint32_t;
 
 enum class PollableType { SOCKET, LISTENER, TIMER };
@@ -26,3 +28,5 @@ public:
   uint32_t next_id = 0;
   PollableID allocate() { return next_id++; }
 };
+
+} // namespace websrv

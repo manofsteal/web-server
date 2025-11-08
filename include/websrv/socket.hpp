@@ -14,6 +14,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+namespace websrv {
 
 struct Socket : Pollable {
 
@@ -36,3 +37,5 @@ struct Socket : Pollable {
   void write(const Buffer &data);
   void write(const std::string &data);
 };
+
+} // namespace websrv

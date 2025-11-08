@@ -5,6 +5,8 @@
 #include <iostream>
 #include <thread>
 
+using namespace websrv;
+
 // Unified HTTP and WebSocket Server Example
 // This example demonstrates how to run both HTTP and WebSocket protocols on the
 // same port

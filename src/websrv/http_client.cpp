@@ -5,6 +5,8 @@
 #include <iostream>
 #include <sstream>
 
+namespace websrv {
+
 HttpClient *HttpClient::fromSocket(Socket *socket) {
   if (socket) {
 
@@ -242,3 +244,5 @@ void HttpClient::handleSocketData(const BufferView &data) {
   std::string data_str(data.data, data.size);
   parseResponse(data_str);
 }
+
+} // namespace websrv

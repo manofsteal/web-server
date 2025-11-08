@@ -6,6 +6,8 @@
 #include <map>
 #include <string>
 
+namespace websrv {
+
 // Forward declaration
 struct WebSocketServer;
 
@@ -64,3 +66,5 @@ struct HttpServer {
   std::string findRoute(const std::string &path, HttpMethod method);
   bool isWebSocketUpgrade(const HttpRequest &request);
 };
+
+} // namespace websrv

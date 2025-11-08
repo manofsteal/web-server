@@ -4,6 +4,10 @@
 #include <chrono>
 #include <iostream>
 
+using namespace websrv;
+
+namespace websrv {
+
 void test_area_allocator_basic() {
   LOG("=== Test 1: Basic Area Allocator Functionality ===");
 
@@ -67,7 +71,8 @@ void test_area_allocator_with_containers() {
 
       // Use proper make_* functions with area allocator context
       auto vec = make_vector<int>();
-      auto str = make_string("This is a test string allocated from area memory");
+      auto str =
+          make_string("This is a test string allocated from area memory");
       auto map = make_map<String, int>();
 
       LOG("Initial area usage: ", frame_area->get_used_size(), " bytes");
@@ -201,9 +206,9 @@ void test_performance_comparison() {
 
   // Reset frame area to ensure clean state
   frame_area->reset();
-  
+
   // Calculate safe number of allocations for 64KB area
-  // Max allocation size: 64 + 50 = 114 bytes  
+  // Max allocation size: 64 + 50 = 114 bytes
   // Safe total: ~400 allocations * 114 bytes = ~45KB (leaves buffer)
   const int num_allocations = 400;
 
@@ -243,10 +248,11 @@ void test_performance_comparison() {
             .count();
 
     LOG("Area allocator time: ", area_time, " microseconds");
-    LOG("Performance improvement: ", (double)malloc_time / area_time, "x faster");
+    LOG("Performance improvement: ", (double)malloc_time / area_time,
+        "x faster");
     LOG("Final area usage: ", frame_area->get_peak_usage(), " bytes peak");
-    
-  } catch (const std::bad_alloc& e) {
+
+  } catch (const std::bad_alloc &e) {
     LOG("Area allocator test failed - insufficient area size");
     LOG("Allocated up to: ", frame_area->get_used_size(), " bytes");
     LOG("Peak usage: ", frame_area->get_peak_usage(), " bytes");
@@ -258,16 +264,16 @@ void test_performance_comparison() {
 
 void test_make_functions_demo() {
   LOG("\n=== Test 6: make_* Functions Demonstration ===");
-  
+
   init_poller_memory();
-  auto* memory_areas = get_poller_memory_areas();
-  auto* frame_area = memory_areas->allocate_frame_area();
-  
+  auto *memory_areas = get_poller_memory_areas();
+  auto *frame_area = memory_areas->allocate_frame_area();
+
   LOG("Demonstrating make_* functions with area allocators...");
-  
+
   {
     WITH_AREA_ALLOCATOR(frame_area);
-    
+
     // Test various make_* function overloads
     LOG("\n1. Basic container creation:");
     auto vec = make_vector<uint8_t>();
@@ -275,33 +281,35 @@ void test_make_functions_demo() {
     auto map = make_string_map<int>();
     auto hashmap = make_hashmap<String, String>();
     auto set = make_set<int>();
-    
-    LOG("  Created containers, area used: ", frame_area->get_used_size(), " bytes");
-    
+
+    LOG("  Created containers, area used: ", frame_area->get_used_size(),
+        " bytes");
+
     LOG("\n2. Pre-sized container creation:");
-    auto big_vec = make_vector<int>(500);  // Reserve space for 500 ints
-    auto big_str = make_string(256);       // Reserve 256 chars
-    
-    LOG("  Pre-sized containers, area used: ", frame_area->get_used_size(), " bytes");
-    
+    auto big_vec = make_vector<int>(500); // Reserve space for 500 ints
+    auto big_str = make_string(256);      // Reserve 256 chars
+
+    LOG("  Pre-sized containers, area used: ", frame_area->get_used_size(),
+        " bytes");
+
     LOG("\n3. Container creation with initial data:");
     auto text = make_string("WebSocket frame data allocated from area memory");
-    
+
     // Add some actual data
     for (int i = 0; i < 50; i++) {
       vec.push_back(static_cast<uint8_t>(i));
       big_vec.push_back(i * 2);
     }
-    
+
     map["content-length"] = 1024;
     map["connection"] = 2048;
     hashmap["protocol"] = "websocket";
     hashmap["version"] = "13";
-    
+
     for (int i = 10; i < 20; i++) {
       set.insert(i);
     }
-    
+
     LOG("  After adding data:");
     LOG("    Vector size: ", vec.size());
     LOG("    Big vector size: ", big_vec.size());
@@ -313,39 +321,43 @@ void test_make_functions_demo() {
     LOG("    Allocations: ", frame_area->get_allocation_count());
     LOG("    Usage: ", frame_area->get_usage_percentage(), "%");
   }
-  
-  LOG("\nAfter context end, area usage: ", frame_area->get_used_size(), " bytes");
-  
+
+  LOG("\nAfter context end, area usage: ", frame_area->get_used_size(),
+      " bytes");
+
   // Test explicit area specification
   LOG("\n4. Explicit area specification:");
   auto explicit_vec = make_vector<char>(100, frame_area);
   auto explicit_str = make_string("Explicit area allocation", frame_area);
   auto explicit_map = make_string_map<double>(frame_area);
-  
+
   explicit_map["pi"] = 3.14159;
   explicit_map["e"] = 2.71828;
-  
-  LOG("  Explicit allocations, area used: ", frame_area->get_used_size(), " bytes");
+
+  LOG("  Explicit allocations, area used: ", frame_area->get_used_size(),
+      " bytes");
   LOG("  Final usage: ", frame_area->get_usage_percentage(), "%");
-  
+
   // Reset and show cleanup
   frame_area->reset();
   LOG("\nAfter reset: ", frame_area->get_used_size(), " bytes");
   LOG("Peak usage was: ", frame_area->get_peak_usage(), " bytes");
-  
+
   cleanup_poller_memory();
 }
+
+} // namespace websrv
 
 int main() {
   LOG("Area Allocator Comprehensive Test Suite");
   LOG("=======================================");
 
-  test_area_allocator_basic();
-  test_area_allocator_with_containers();
-  test_multiple_areas();
-  test_area_overflow();
-  test_performance_comparison();
-  test_make_functions_demo();
+  websrv::test_area_allocator_basic();
+  websrv::test_area_allocator_with_containers();
+  websrv::test_multiple_areas();
+  websrv::test_area_overflow();
+  websrv::test_performance_comparison();
+  websrv::test_make_functions_demo();
 
   LOG("\n=== All Tests Completed ===");
   return 0;

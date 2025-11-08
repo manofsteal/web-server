@@ -5,6 +5,8 @@
 #include <new>
 #include <type_traits>
 
+namespace websrv {
+
 // Forward declaration
 class AreaAllocatorBase;
 
@@ -162,3 +164,5 @@ public:
 
 // Macro for convenient area context switching
 #define WITH_AREA_ALLOCATOR(area) AreaAllocatorContext _ctx(area)
+
+} // namespace websrv

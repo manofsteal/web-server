@@ -2,6 +2,8 @@
 
 #include <vector>
 
+namespace websrv {
+
 struct Any {
   std::vector<char> storage = {};
 
@@ -19,3 +21,5 @@ struct Any {
     return new (storage.data()) T();
   }
 };
+
+} // namespace websrv

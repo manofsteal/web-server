@@ -7,6 +7,8 @@
 #include <mutex>
 #include <thread>
 
+namespace websrv {
+
 // Factory methods
 Listener *Poller::createListener() {
   Listener *listener = poolManager.listeners.create(&poolManager.id_manager);
@@ -320,7 +322,8 @@ void Poller::processExpiredTimers() {
 
       if (timer.is_interval) {
         // Reschedule interval timer
-        timer.expiry_time = SteadyClock::addMilliseconds(now, timer.interval_ms);
+        timer.expiry_time =
+            SteadyClock::addMilliseconds(now, timer.interval_ms);
       } else {
         // Remove one-time timer
         timers.erase(it);
@@ -379,3 +382,5 @@ void Poller::drainNotificationPipe() {
     }
   }
 }
+
+} // namespace websrv

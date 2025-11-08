@@ -2,6 +2,8 @@
 #include "websrv/poller.hpp"
 #include "websrv/log.hpp"
 
+namespace websrv {
+
 Sequence::Sequence(Poller &poller) : poller(poller) {}
 
 void Sequence::addTask(Poller::TimerCallback callback) {
@@ -192,3 +194,5 @@ void Sequence::resume() {
   // Continue with the current task using remaining time if any
   executeNextTask();
 }
+
+} // namespace websrv

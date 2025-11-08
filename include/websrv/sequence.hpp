@@ -11,6 +11,8 @@
 #include <thread>
 #include <vector>
 
+namespace websrv {
+
 struct Sequence {
   // Constructor
   Sequence(Poller &poller);
@@ -62,3 +64,5 @@ private:
   SteadyTimer task_timer;
   uint32_t remaining_time_ms = 0;
 };
+
+} // namespace websrv

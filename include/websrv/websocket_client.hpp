@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+namespace websrv {
+
 enum class WebSocketOpcode {
   CONTINUATION = 0x0,
   TEXT = 0x1,
@@ -75,3 +77,5 @@ struct WebSocketClient {
              WebSocketOpcode opcode = WebSocketOpcode::BINARY);
   std::string generateKey();
 };
+
+} // namespace websrv

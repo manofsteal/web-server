@@ -7,6 +7,8 @@
 #include <thread>
 #include <vector>
 
+namespace websrv {
+
 // Task represents a unit of work to be executed by the executor
 using Task = std::function<void()>;
 
@@ -123,3 +125,5 @@ private:
     }
   }
 };
+
+} // namespace websrv

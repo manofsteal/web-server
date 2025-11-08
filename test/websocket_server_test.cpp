@@ -7,6 +7,8 @@
 #include <signal.h>
 #include <thread>
 
+using namespace websrv;
+
 // can use websocket_client_test.py to test this
 
 int main() {

@@ -1,6 +1,8 @@
 #pragma once
 #include "websrv/steady_clock.hpp"
 
+namespace websrv {
+
 class SteadyTimer {
 public:
     SteadyTimer() {
@@ -22,3 +24,5 @@ public:
 private:
     SteadyClock::TimePoint start_time;
 };
+
+} // namespace websrv

@@ -3,6 +3,8 @@
 #include "websrv/pollable.hpp"
 #include <map>
 
+namespace websrv {
+
 template <typename T> struct PollablePool {
   std::map<PollableID, T> items = {};
 
@@ -20,3 +22,5 @@ template <typename T> struct PollablePool {
     return it != items.end() ? &it->second : nullptr;
   }
 };
+
+} // namespace websrv

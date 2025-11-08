@@ -7,6 +7,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+namespace websrv {
+
 struct Listener : Pollable {
   using AcceptCallback = std::function<void(Socket *)>;
   AcceptCallback onAccept = [](Socket *) {};
@@ -18,3 +20,5 @@ struct Listener : Pollable {
 
   void stop();
 };
+
+} // namespace websrv

@@ -1,5 +1,7 @@
 #include "websrv/poller_memory.hpp"
 
+namespace websrv {
+
 // Thread-local storage for poller memory areas
 thread_local std::unique_ptr<PollerMemoryAreas> poller_memory_areas = nullptr;
 
@@ -19,3 +21,5 @@ PollerMemoryAreas* get_poller_memory_areas() {
     }
     return poller_memory_areas.get();
 }
+
+} // namespace websrv

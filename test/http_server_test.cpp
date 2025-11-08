@@ -11,6 +11,8 @@
 // curl -X POST http://localhost:8080/echo -d 'test body'
 // curl http://localhost:8080/status
 
+using namespace websrv;
+
 int main() {
   Poller poller;
 

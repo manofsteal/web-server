@@ -1,9 +1,11 @@
 #include "websrv/http_server.hpp"
-#include "websrv/websocket_server.hpp"
 #include "websrv/poller.hpp"
+#include "websrv/websocket_server.hpp"
 #include <algorithm>
 #include <iostream>
 #include <sstream>
+
+namespace websrv {
 
 HttpServer::HttpServer(Listener *listener) : listener(listener) {
   if (listener) {
@@ -46,8 +48,10 @@ void HttpServer::handleConnection(Socket &socket) {
     std::string data_str(data.data, data.size);
 
     // Check if this might be a WebSocket upgrade early (before full parsing)
-    if (websocket_server && data_str.find("Upgrade: websocket") != std::string::npos) {
-      // Delegate to WebSocket server's handleConnection which will handle the upgrade
+    if (websocket_server &&
+        data_str.find("Upgrade: websocket") != std::string::npos) {
+      // Delegate to WebSocket server's handleConnection which will handle the
+      // upgrade
       websocket_server->handleConnection(socket);
       // Trigger the WebSocket handler with the data we received
       if (socket.onData) {
@@ -231,6 +235,9 @@ bool HttpServer::isWebSocketUpgrade(const HttpRequest &request) {
                  ::tolower);
 
   // Check WebSocket version is 13
-  return upgrade == "websocket" && connection.find("upgrade") != std::string::npos &&
+  return upgrade == "websocket" &&
+         connection.find("upgrade") != std::string::npos &&
          version_it->second == "13";
 }
+
+} // namespace websrv

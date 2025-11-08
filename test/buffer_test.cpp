@@ -2,6 +2,8 @@
 #include <iostream>
 #include <string>
 
+using namespace websrv;
+
 int main() {
   Buffer buf;
 

@@ -5,6 +5,8 @@
 #include <map>
 #include <string>
 
+namespace websrv {
+
 enum class HttpMethod { GET, POST, PUT, DELETE, HEAD, OPTIONS };
 
 enum class HttpStatus { PENDING, COMPLETED, ERROR };
@@ -54,3 +56,5 @@ struct HttpClient {
   void parseResponse(const std::string &data);
   void handleSocketData(const BufferView &data);
 };
+
+} // namespace websrv

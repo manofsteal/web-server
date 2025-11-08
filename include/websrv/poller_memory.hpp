@@ -5,6 +5,8 @@
 #include <memory>
 #include <vector>
 
+namespace websrv {
+
 // Memory area sizes based on TODO.md strategy
 constexpr size_t EVENT_LOOP_AREA_SIZE = 256 * 1024;    // 256KB per iteration
 constexpr size_t CONNECTION_AREA_SIZE = 128 * 1024;     // 128KB per connection  
@@ -251,3 +253,5 @@ void cleanup_poller_memory();
 
 // Get current thread's memory areas
 PollerMemoryAreas* get_poller_memory_areas();
+
+} // namespace websrv

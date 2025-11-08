@@ -3,6 +3,8 @@
 #include "websrv/log.hpp"
 #include <iostream>
 
+using namespace websrv;
+
 void test_make_functions_standard_mode() {
     LOG("=== Test: make_* Functions in Standard Mode (USE_AREA_ALLOCATORS=0) ===");
     

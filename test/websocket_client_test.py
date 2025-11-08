@@ -3,7 +3,7 @@
 Simple WebSocket client to test the C++ WebSocket server example.
 Tests both the echo route (/) and chat route (/chat).
 
-Can test both standalone WebSocket server (port 8765) and unified server (port 8080).
+Can test both standalone WebSocket server (port 8080) and unified server (port 8080).
 """
 
 import asyncio
@@ -12,12 +12,12 @@ import sys
 import argparse
 
 
-# This intend to used to test websocket_server_example.cpp (port 8765)
+# This intend to used to test websocket_server_example.cpp (port 8080)
 # or unified_server_example.cpp (port 8080)
 
-async def test_echo_route(port=8765, path="/"):
+async def test_echo_route(host="localhost", port=8080, path="/"):
     """Test the echo route"""
-    uri = f"ws://localhost:{port}{path}"
+    uri = f"ws://{host}:{port}{path}"
     print(f"\n=== Testing Echo Route: {uri} ===")
 
     try:
@@ -61,16 +61,16 @@ async def test_echo_route(port=8765, path="/"):
             print("✓ Multiple message test completed!")
 
     except ConnectionRefusedError:
-        print("✗ Connection refused. Is the server running on port 8765?")
+        print("✗ Connection refused. Is the server running on port 8080?")
         sys.exit(1)
     except Exception as e:
         print(f"✗ Error: {e}")
         sys.exit(1)
 
 
-async def test_chat_route(port=8765, path="/chat"):
+async def test_chat_route(host="localhost", port=8080, path="/chat"):
     """Test the chat route"""
-    uri = f"ws://localhost:{port}{path}"
+    uri = f"ws://{host}:{port}{path}"
     print(f"\n=== Testing Chat Route: {uri} ===")
 
     try:
@@ -98,16 +98,16 @@ async def test_chat_route(port=8765, path="/chat"):
                     print(f"✗ Unexpected response! Expected: {expected}")
 
     except ConnectionRefusedError:
-        print("✗ Connection refused. Is the server running on port 8765?")
+        print("✗ Connection refused. Is the server running on port 8080?")
         sys.exit(1)
     except Exception as e:
         print(f"✗ Error: {e}")
         sys.exit(1)
 
 
-async def test_multiple_connections(port=8765, path="/", num_connections=10, messages_per_conn=5):
+async def test_multiple_connections(host="localhost", port=8080, path="/", num_connections=10, messages_per_conn=5):
     """Test multiple concurrent WebSocket connections"""
-    uri = f"ws://localhost:{port}{path}"
+    uri = f"ws://{host}:{port}{path}"
     print(f"\n=== Testing Multiple Connections: {uri} ===")
     print(f"Creating {num_connections} concurrent connections...")
     print(f"Each connection will send {messages_per_conn} messages\n")
@@ -174,6 +174,64 @@ async def test_multiple_connections(port=8765, path="/", num_connections=10, mes
         print(f"✗ {failed} connection(s) failed")
 
 
+async def test_message_rate(host="localhost", port=8080, path="/", duration=10):
+    """Test message rate - how many echo messages per second"""
+    uri = f"ws://{host}:{port}{path}"
+    print(f"\n=== Testing Message Rate: {uri} ===")
+    print(f"Duration: {duration} seconds\n")
+
+    import time
+
+    try:
+        async with websockets.connect(uri) as websocket:
+            print("✓ Connected to echo server")
+            print("→ Starting message rate test...\n")
+
+            start_time = time.time()
+            end_time = start_time + duration
+
+            messages_sent = 0
+            messages_received = 0
+
+            # Send messages as fast as possible
+            while time.time() < end_time:
+                msg = f"Rate test message {messages_sent + 1}"
+                await websocket.send(msg)
+                messages_sent += 1
+
+                response = await websocket.recv()
+                messages_received += 1
+
+                # Verify echo (only for first few messages to avoid overhead)
+                if messages_received <= 5 and response != msg:
+                    print(f"✗ Echo mismatch! Expected: {msg}, Got: {response}")
+
+            elapsed_time = time.time() - start_time
+
+            # Display results
+            print(f"{'='*60}")
+            print("Message Rate Test Results:")
+            print(f"{'='*60}")
+            print(f"  Duration:           {elapsed_time:.2f}s")
+            print(f"  Messages sent:      {messages_sent}")
+            print(f"  Messages received:  {messages_received}")
+            print(f"  Message rate:       {messages_sent / elapsed_time:.2f} msg/s")
+            print(f"  Round-trip rate:    {messages_received / elapsed_time:.2f} msg/s")
+            print(f"{'='*60}")
+
+            if messages_sent == messages_received:
+                print("✓ All messages echoed successfully!")
+            else:
+                print(f"✗ Message count mismatch! Sent: {messages_sent}, Received: {messages_received}")
+
+    except ConnectionRefusedError:
+        print(f"✗ Connection refused. Is the server running on {host}:{port}?")
+        sys.exit(1)
+    except Exception as e:
+        print(f"✗ Error: {e}")
+        sys.exit(1)
+
+
 async def main():
     """Main function to run all tests"""
     parser = argparse.ArgumentParser(
@@ -181,18 +239,23 @@ async def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
-  %(prog)s                           # Test standalone server (port 8765, path /)
-  %(prog)s -p 8080                    # Test on port 8080
+  %(prog)s                            # Test standalone server (localhost:8080, path /)
+  %(prog)s -p 8080                    # Test on localhost:8080
+  %(prog)s -H 10.11.25.44 -p 8080     # Test on 10.11.25.44:8080
   %(prog)s -p 8080 --path /ws/echo    # Test on port 8080 with path /ws/echo
   %(prog)s -m                         # Test 10 concurrent connections
   %(prog)s -m -c 50 -n 10             # Test 50 connections, 10 messages each
-  %(prog)s -m -c 20 -p 8080           # Test 20 connections on port 8080
+  %(prog)s -m -c 20 -H 10.11.25.44    # Test 20 connections on 10.11.25.44:8080
   %(prog)s -m -c 100 -p 9876          # Test 100 connections on port 9876
+  %(prog)s -r                         # Test message rate (10 seconds)
+  %(prog)s -r -d 30                   # Test message rate for 30 seconds
         '''
     )
 
-    parser.add_argument('-p', '--port', type=int, default=8765, metavar='PORT',
-                        help='Server port (default: 8765)')
+    parser.add_argument('-H', '--host', type=str, default='localhost', metavar='HOST',
+                        help='Server host (default: localhost)')
+    parser.add_argument('-p', '--port', type=int, default=8080, metavar='PORT',
+                        help='Server port (default: 8080)')
     parser.add_argument('--path', type=str, default='/', metavar='PATH',
                         help='WebSocket path (default: /)')
     parser.add_argument('-m', '--multi', action='store_true',
@@ -201,37 +264,48 @@ Examples:
                         help='Number of concurrent connections (default: 10, use with -m)')
     parser.add_argument('-n', '--messages', type=int, default=5, metavar='M',
                         help='Messages per connection (default: 5, use with -m)')
+    parser.add_argument('-r', '--rate', action='store_true',
+                        help='Test message rate (messages per second)')
+    parser.add_argument('-d', '--duration', type=int, default=10, metavar='SECONDS',
+                        help='Duration for rate test in seconds (default: 10, use with -r)')
 
     args = parser.parse_args()
 
-    # Use specified port and path
+    # Use specified host, port and path
+    host = args.host
     port = args.port
     echo_path = args.path
     chat_path = "/chat" if args.path == "/" else args.path
 
     # Run appropriate test mode
-    if args.multi:
+    if args.rate:
+        # Message rate test
+        print(f"Testing on {host}:{port}")
+        await test_message_rate(host, port, echo_path, args.duration)
+    elif args.multi:
         # Multiple connection test
-        print(f"Testing on port {port}")
-        await test_multiple_connections(port, echo_path, args.connections, args.messages)
+        print(f"Testing on {host}:{port}")
+        await test_multiple_connections(host, port, echo_path, args.connections, args.messages)
     else:
         # Run automated tests
         print("=" * 60)
-        print(f"WebSocket Client Test Suite - Port {port}")
+        print(f"WebSocket Client Test Suite - {host}:{port}")
         print("=" * 60)
 
-        await test_echo_route(port, echo_path)
+        await test_echo_route(host, port, echo_path)
         await asyncio.sleep(0.5)  # Small delay between tests
 
-        await test_chat_route(port, chat_path)
+        await test_chat_route(host, port, chat_path)
 
         print("\n" + "=" * 60)
         print("All tests completed!")
         print("=" * 60)
         print("\nTip: Run with -m flag for multiple connection test:")
         print(f"  python websocket_client_test.py -m -c 20")
-        print("\nOr test on different port:")
-        print(f"  python websocket_client_test.py -p 8080 --path /ws/echo")
+        print("\nOr run with -r flag for message rate test:")
+        print(f"  python websocket_client_test.py -r -d 30")
+        print("\nOr test on different host/port:")
+        print(f"  python websocket_client_test.py -H 10.11.25.44 -p 8080 --path /ws/echo")
 
 
 if __name__ == "__main__":

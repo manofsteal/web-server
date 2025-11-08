@@ -4,6 +4,8 @@
 #include <iostream>
 #include <thread>
 
+using namespace websrv;
+
 int main() {
   Poller poller;
 

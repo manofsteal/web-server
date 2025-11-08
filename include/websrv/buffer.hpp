@@ -3,6 +3,8 @@
 #include <list>
 #include <vector>
 
+namespace websrv {
+
 class Buffer {
 private:
   static constexpr size_t BLOCK_SIZE = 100 * 1024;
@@ -86,3 +88,5 @@ public:
   // Get block size
   static constexpr size_t blockSize() { return BLOCK_SIZE; }
 };
+
+} // namespace websrv

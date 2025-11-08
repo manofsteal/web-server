@@ -3,11 +3,13 @@
 #include "websrv/http_server.hpp"
 #include "websrv/log.hpp"
 #include "websrv/poller.hpp"
+
 #include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <openssl/sha.h>
 #include <random>
+namespace websrv {
 
 WebSocketServer::WebSocketServer(Listener *li) {
 
@@ -545,3 +547,5 @@ WebSocketConnection::buildFrame(const std::vector<uint8_t> &data,
 
   return frame;
 }
+
+} // namespace websrv

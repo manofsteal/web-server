@@ -2,6 +2,8 @@
 #include "websrv/poller.hpp"
 #include <netdb.h>
 
+namespace websrv {
+
 Socket::Socket() : Pollable() {
   type = PollableType::SOCKET;
 
@@ -98,3 +100,5 @@ void Socket::write(const std::string &data) {
     poller->enablePollout(id);
   }
 }
+
+} // namespace websrv

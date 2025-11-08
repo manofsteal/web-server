@@ -7,6 +7,8 @@
 #include <atomic>
 #include <vector>
 
+using namespace websrv;
+
 struct PerfStats {
     std::atomic<int> messages_sent{0};
     std::atomic<int> messages_received{0};

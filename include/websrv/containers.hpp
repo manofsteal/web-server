@@ -69,6 +69,8 @@
 // Include area allocator support
 #include "websrv/area_allocator.hpp"
 
+namespace websrv {
+
 // Configuration flag for area allocator usage
 #ifndef USE_AREA_ALLOCATORS
 #define USE_AREA_ALLOCATORS 0  // Disabled by default for gradual rollout
@@ -441,3 +443,5 @@ template<typename T, typename... Args>
 inline SharedPtr<T> MakeShared(Args&&... args) {
     return std::make_shared<T>(std::forward<Args>(args)...);
 }
+
+} // namespace websrv

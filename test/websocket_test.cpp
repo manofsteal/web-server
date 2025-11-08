@@ -3,6 +3,8 @@
 #include <iostream>
 #include <cassert>
 
+using namespace websrv;
+
 int main() {
     std::cout << "Testing WebSocket Client..." << std::endl;
     

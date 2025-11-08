@@ -3,6 +3,8 @@
 #include <chrono>
 #include <iostream>
 
+using namespace websrv;
+
 int main() {
   Poller poller;
   Sequence sequence(poller);

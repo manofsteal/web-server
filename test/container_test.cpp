@@ -3,9 +3,11 @@
 #include "websrv/log.hpp"
 #include <iostream>
 
+using namespace websrv;
+
 int main() {
     LOG("Container Test: Testing make_* functions");
-    
+
     // Initialize poller memory areas for testing
     init_poller_memory();
     auto* memory_areas = get_poller_memory_areas();
