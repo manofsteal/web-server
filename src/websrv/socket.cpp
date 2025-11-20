@@ -1,44 +1,28 @@
 #include "websrv/socket.hpp"
 #include "websrv/poller.hpp"
+#include "websrv/log.hpp"
 #include <netdb.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <algorithm>
+#include <vector>
 
 namespace websrv {
 
 Socket::Socket() : Pollable() {
   type = PollableType::SOCKET;
-
-  onEvent = [this](short revents) {
-    if (file_descriptor >= 0) {
-      if (revents & POLLIN) {
-        char buffer[1024];
-        ssize_t bytes_read = read(file_descriptor, buffer, sizeof(buffer));
-        if (bytes_read > 0) {
-          BufferView view{buffer, static_cast<size_t>(bytes_read)};
-          if (onData) {
-            onData(*this, view);
-          }
-        }
-      }
-      if ((revents & POLLOUT) && write_buffer.size() > 0) {
-        std::vector<char> temp_buffer;
-        temp_buffer.reserve(std::min(write_buffer.size(), size_t(1024)));
-        for (size_t i = 0; i < temp_buffer.capacity(); ++i) {
-          temp_buffer.push_back(write_buffer.getAt(i));
-        }
-        ssize_t bytes_written =
-            ::write(file_descriptor, temp_buffer.data(), temp_buffer.size());
-        if (bytes_written > 0) {
-          write_buffer.clear();
-        }
-      }
-    }
-  };
 }
 
 bool Socket::start(const std::string &host, uint16_t port) {
   file_descriptor = socket(AF_INET, SOCK_STREAM, 0);
   if (file_descriptor < 0) {
     return false;
+  }
+
+  // Set non-blocking
+  int flags = fcntl(file_descriptor, F_GETFL, 0);
+  if (flags != -1) {
+    fcntl(file_descriptor, F_SETFL, flags | O_NONBLOCK);
   }
 
   struct addrinfo hints = {};
@@ -50,8 +34,8 @@ bool Socket::start(const std::string &host, uint16_t port) {
   std::string port_str = std::to_string(port);
   int res = getaddrinfo(host.c_str(), port_str.c_str(), &hints, &result);
   if (res != 0 || !result) {
-    close(file_descriptor);
-    std::cerr << "Failed to resolve address " << host << std::endl;
+    ::close(file_descriptor);
+    LOG_ERROR("Failed to resolve address ", host);
     return false;
   }
 
@@ -60,13 +44,18 @@ bool Socket::start(const std::string &host, uint16_t port) {
     if (connect(file_descriptor, rp->ai_addr, rp->ai_addrlen) == 0) {
       connected = true;
       break;
+    } else {
+        if (errno == EINPROGRESS) {
+            connected = true; // Connecting in background
+            break;
+        }
     }
   }
   freeaddrinfo(result);
 
   if (!connected) {
-    close(file_descriptor);
-    std::cerr << "Failed to connect to " << host << ":" << port << std::endl;
+    ::close(file_descriptor);
+    LOG_ERROR("Failed to connect to ", host, ":", port);
     return false;
   }
 
@@ -75,30 +64,72 @@ bool Socket::start(const std::string &host, uint16_t port) {
   return true;
 }
 
-void Socket::write(const Buffer &data) {
+void Socket::write(const std::string &data) {
   bool was_empty = write_buffer.size() == 0;
-  // Copy data from Buffer to write_buffer
-  for (size_t i = 0; i < data.size(); ++i) {
-    char byte = data.getAt(i);
-    write_buffer.append(&byte, 1);
-  }
+  write_buffer.append(data.data(), data.size());
 
-  // Enable POLLOUT if buffer was empty (so we weren't monitoring for write
-  // events)
+  // Enable POLLOUT if buffer was empty
   if (was_empty && poller) {
     poller->enablePollout(id);
   }
 }
 
-void Socket::write(const std::string &data) {
-  bool was_empty = write_buffer.size() == 0;
-  write_buffer.append(data.data(), data.size());
+bool Socket::handleRead() {
+    if (file_descriptor < 0) return false;
+    
+    char buffer[4096];
+    ssize_t bytes_read = ::read(file_descriptor, buffer, sizeof(buffer));
 
-  // Enable POLLOUT if buffer was empty (so we weren't monitoring for write
-  // events)
-  if (was_empty && poller) {
-    poller->enablePollout(id);
-  }
+    if (bytes_read > 0) {
+        read_buffer.insert(read_buffer.end(), buffer, buffer + bytes_read);
+        return true;
+    } else if (bytes_read == 0) {
+        // EOF - connection closed
+        return false;
+    } else {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            return false; // Error
+        }
+        return false; // Would block
+    }
+}
+
+bool Socket::handleWrite() {
+    if (file_descriptor < 0 || write_buffer.size() == 0) return false;
+    
+    // Extract data from Buffer to write
+    std::vector<char> temp;
+    size_t size = write_buffer.size();
+    temp.reserve(size);
+    for(size_t i = 0; i < size; ++i) {
+        temp.push_back(write_buffer.getAt(i));
+    }
+    
+    ssize_t bytes_written = ::write(file_descriptor, temp.data(), temp.size());
+    
+    if (bytes_written > 0) {
+        write_buffer.clear(); // Simplification: assume all written
+        return true;
+    }
+    return false;
+}
+
+bool Socket::handleError(short revents) {
+    if (revents & (POLLERR | POLLHUP | POLLNVAL)) {
+        return true;
+    }
+    return false;
+}
+
+BufferView Socket::receive() {
+    if (read_buffer.empty()) {
+        return BufferView{};
+    }
+    return BufferView{read_buffer.data(), read_buffer.size()};
+}
+
+void Socket::clearReadBuffer() {
+    read_buffer.clear();
 }
 
 } // namespace websrv

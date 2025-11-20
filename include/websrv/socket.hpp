@@ -21,21 +21,30 @@ struct Socket : Pollable {
   std::string remote_addr = "";
   uint16_t remote_port = 0;
 
-  Buffer read_buffer = Buffer{};
+  std::vector<char> read_buffer;
   Buffer write_buffer = Buffer{};
 
   // for higher application protocol
   Any userData;
 
-  using Callback = std::function<void(Socket &, const BufferView &)>;
-  Callback onData = [](Socket &, const BufferView &) {};
-
   Socket();
 
   bool start(const std::string &host, uint16_t port);
-
-  void write(const Buffer &data);
+  void close();
+  
+  // Process I/O events
+  bool handleRead();   // Returns true if data was read
+  bool handleWrite();  // Returns true if data was written
+  bool handleError(short revents); // Returns true if error occurred
+  
+  // Data access
+  BufferView receive();
+  void clearReadBuffer();
   void write(const std::string &data);
+  void write(const char *data, size_t len);
+
+private:
+  friend class SocketManager;
 };
 
 } // namespace websrv

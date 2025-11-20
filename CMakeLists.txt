@@ -12,15 +12,22 @@ find_package(OpenSSL REQUIRED)
 include_directories(include)
 
 # Common source files (without WebSocket components that require OpenSSL)
-set(COMMON_SOURCES
+# Core source files (refactored)
+set(CORE_SOURCES
     src/websrv/poller.cpp
     src/websrv/socket.cpp
     src/websrv/listener.cpp
-    src/websrv/http_client.cpp
-    src/websrv/http_server.cpp
-    src/websrv/sequence.cpp
+    src/websrv/listener_manager.cpp
+    src/websrv/socket_manager.cpp
     src/websrv/area_allocator.cpp
     src/websrv/poller_memory.cpp
+)
+
+# Common source files (without WebSocket components that require OpenSSL)
+set(COMMON_SOURCES
+    ${CORE_SOURCES}
+    src/websrv/http_client.cpp
+    src/websrv/http_server.cpp
 )
 
 # Minimal sources for area allocator tests (no HTTP/WebSocket to avoid AreaAllocator + std::hash issues)
@@ -105,3 +112,7 @@ target_link_libraries(area_allocator_enabled_test pthread)
 target_compile_definitions(area_allocator_enabled_test PRIVATE USE_AREA_ALLOCATORS=1)
 add_executable(make_functions_test ${ALLOCATOR_TEST_SOURCES} test/make_functions_test.cpp)
 target_link_libraries(make_functions_test pthread)
+
+# Game loop test
+add_executable(game_loop_test ${CORE_SOURCES} test/game_loop_test.cpp)
+target_link_libraries(game_loop_test pthread)

@@ -10,15 +10,15 @@
 namespace websrv {
 
 struct Listener : Pollable {
-  using AcceptCallback = std::function<void(Socket *)>;
-  AcceptCallback onAccept = [](Socket *) {};
-  uint16_t port = 0;
-
   Listener();
 
   bool start(uint16_t port);
-
   void stop();
+  
+  // Process POLLIN event - returns new socket if accepted, nullptr otherwise
+  Socket* handleAccept(Poller& poller);
+
+  friend class ListenerManager;
 };
 
 } // namespace websrv

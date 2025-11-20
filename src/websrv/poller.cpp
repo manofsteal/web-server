@@ -3,11 +3,18 @@
 #include <algorithm>
 #include <fcntl.h>
 #include <iostream>
-#include <limits>
-#include <mutex>
-#include <thread>
+#include <unistd.h>
+#include <cstring>
 
 namespace websrv {
+
+Poller::Poller() {
+  createNotificationPipe();
+}
+
+Poller::~Poller() {
+  closeNotificationPipe();
+}
 
 // Factory methods
 Listener *Poller::createListener() {
@@ -45,25 +52,13 @@ void Poller::enablePollout(PollableID socket_id) {
 }
 
 void Poller::notify() {
-  // If called from the same thread as the poller, do nothing
-  if (std::this_thread::get_id() == poller_thread_id) {
-    return;
-  }
-
   // Write a byte to the notification pipe to wake up poll()
   if (hasNotificationPipe()) {
     char byte = 1;
-
     if (write(notification_pipe[1], &byte, 1) == -1) {
-      // Handle error but don't throw - this might be called from signal
-      // handlers
-      LOG_ERROR("Failed to write to notification pipe: ", strerror(errno));
+       // Ignore error
     }
   }
-}
-
-void Poller::setMaxPollTimeout(int max_timeout_ms) {
-  max_poll_timeout_ms = std::max(2000, max_timeout_ms);
 }
 
 void Poller::updatePollEvents() {
@@ -80,239 +75,138 @@ void Poller::updatePollEvents() {
   }
 }
 
-void Poller::start() {
-  running = true;
+std::vector<PollerEvent> Poller::poll(int timeout_ms) {
+  // Process any expired timers first
+  processExpiredTimers();
 
-  // Capture the poller thread ID
-  poller_thread_id = std::this_thread::get_id();
+  // Update poll events for any pending POLLOUT requests
+  updatePollEvents();
 
-  // Create notification pipe at start
-  createNotificationPipe();
+  // Rebuild pollFds from pollEntries
+  pollFds.clear();
 
-  while (running) {
-    // Process any expired timers first
-    processExpiredTimers();
+  // Add notification pipe as first fd (if available)
+  if (hasNotificationPipe()) {
+    pollfd notification_pfd;
+    notification_pfd.fd = notification_pipe[0];
+    notification_pfd.events = POLLIN;
+    notification_pfd.revents = 0;
+    pollFds.push_back(notification_pfd);
+  }
 
-    // Update poll events for any pending POLLOUT requests
-    updatePollEvents();
+  for (const auto &pair : pollEntries) {
+    const auto &entry = pair.second;
+    pollfd pfd;
+    pfd.fd = entry.pollable->file_descriptor;
+    pfd.events = entry.events;
+    pfd.revents = 0;
+    pollFds.push_back(pfd);
+  }
 
-    // Calculate timeout based on next timer expiry
-    current_poll_timeout_ms = calculatePollTimeout();
+  int result = ::poll(pollFds.data(), pollFds.size(), timeout_ms);
 
-    // Rebuild pollFds from pollEntries
-    pollFds.clear();
+  std::vector<PollerEvent> events;
 
-    // Add notification pipe as first fd (if available)
-    if (hasNotificationPipe()) {
-      pollfd notification_pfd;
-      notification_pfd.fd = notification_pipe[0];
-      notification_pfd.events = POLLIN;
-      notification_pfd.revents = 0;
-      pollFds.push_back(notification_pfd);
-    }
-
-    for (const auto &pair : pollEntries) {
-      const auto &id = pair.first;
-      const auto &entry = pair.second;
-      pollfd pfd;
-      pfd.fd = entry.pollable->file_descriptor;
-      pfd.events = entry.events;
-      pfd.revents = 0;
-      pollFds.push_back(pfd);
-    }
-
-    int result = poll(pollFds.data(), pollFds.size(), current_poll_timeout_ms);
-
-    if (result < 0) {
-      if (errno == EINTR)
-        continue; // Interrupted by signal, continue
+  if (result < 0) {
+    if (errno != EINTR) {
       LOG_ERROR("Poll error: ", strerror(errno));
+    }
+    return events;
+  }
+
+  if (result == 0) {
+    return events;
+  }
+
+  // Check notification pipe first (index 0) if it exists
+  bool has_notification_pipe = hasNotificationPipe();
+  if (has_notification_pipe && pollFds.size() > 0 &&
+      (pollFds[0].revents & POLLIN)) {
+    drainNotificationPipe();
+  }
+
+  // Collect events
+  size_t index = has_notification_pipe ? 1 : 0;
+  for (const auto &pair : pollEntries) {
+    const auto &id = pair.first;
+    const auto &entry = pair.second;
+    if (index >= pollFds.size())
       break;
+
+    short revents = pollFds[index].revents;
+    if (revents != 0) {
+      events.push_back({id, revents});
+      
+      // If this was a POLLOUT event, we might want to auto-clear it or let the user handle it.
+      // For now, we just report it. The user (SocketManager) should handle clearing POLLOUT if needed,
+      // but typically POLLOUT is level-triggered so it will keep firing until we stop asking for it.
+      // In the old code, we cleared it if write buffer was empty.
+      // We will leave that logic to the SocketManager.
     }
-
-    if (result == 0) {
-      // Timeout occurred - timers will be processed at the start of next loop
-      continue;
-    }
-
-    // Process events
-    size_t index = 0;
-
-    // Check notification pipe first (index 0) if it exists
-    bool has_notification_pipe = hasNotificationPipe();
-    if (has_notification_pipe && pollFds.size() > 0 &&
-        pollFds[0].revents & POLLIN) {
-      drainNotificationPipe();
-    }
-
-    processCleanupTasks();
-
-    // Process pollable events (starting after notification pipe if it exists)
-    index = has_notification_pipe ? 1 : 0;
-    for (const auto &pair : pollEntries) {
-      const auto &id = pair.first;
-      const auto &entry = pair.second;
-      if (index >= pollFds.size())
-        break;
-
-      short revents = pollFds[index].revents;
-      if (revents != 0) {
-
-        entry.pollable->onEvent(revents);
-        // If this was a POLLOUT event and write buffer is now empty, disable
-        // POLLOUT
-        if (revents & POLLOUT && entry.pollable->type == PollableType::SOCKET) {
-          Socket *socket = static_cast<Socket *>(entry.pollable);
-          if (socket->write_buffer.size() == 0) {
-            // Remove POLLOUT from events to prevent busy loop
-            const_cast<PollEntry &>(entry).events &= ~POLLOUT;
-          }
-        }
-      }
-      index++;
-    }
-  }
-}
-
-void Poller::stop() {
-  running = false;
-  // Stop executor first
-  executor.stop();
-
-  for (auto &pair : pollEntries) {
-    auto &id = pair.first;
-    auto &entry = pair.second;
-    entry.pollable->stopFunction();
+    index++;
   }
 
-  // Close notification pipe
-  closeNotificationPipe();
+  return events;
 }
 
 // Timer implementation
-Poller::TimerID Poller::setTimeout(uint32_t ms, TimerCallback callback) {
+Poller::TimerID Poller::createTimer(uint64_t ms, bool is_interval) {
   TimerID id = next_timer_id++;
   auto now = SteadyClock::now();
   auto expiry = SteadyClock::addMilliseconds(now, ms);
-
-  timers[id] = TimerEntry{
-      id,    expiry, ms, callback,
-      false, // not an interval
-      true   // active
+  
+  TimerEntry entry = {
+      id,
+      expiry,
+      ms,
+      is_interval,
+      false // expired
   };
-
-  // If poller is running, notify to recalculate timeout
-  // (especially important when called from within timer callbacks)
-  if (running) {
-    notify();
-  }
-
+  
+  timers[id] = entry;
   return id;
 }
 
-Poller::TimerID Poller::setInterval(uint32_t ms, TimerCallback callback) {
-  TimerID id = next_timer_id++;
-  auto now = SteadyClock::now();
-  auto expiry = SteadyClock::addMilliseconds(now, ms);
-
-  timers[id] = TimerEntry{
-      id,   expiry, ms, callback,
-      true, // is an interval
-      true  // active
-  };
-
-  // If new timer has smaller timeout than current poll timeout, notify to
-  // recalculate
-  if (running && (int)ms < current_poll_timeout_ms) {
-    notify();
-  }
-
-  return id;
-}
-
-void Poller::clearTimeout(TimerID timer_id) {
-  cleanupTasks.push_back([this, timer_id]() {
-    auto it = timers.find(timer_id);
+bool Poller::isTimerExpired(TimerID id) {
+    auto it = timers.find(id);
     if (it != timers.end()) {
-      timers.erase(it);
+        return it->second.expired;
     }
-  });
+    return false;
 }
 
-void Poller::clearInterval(TimerID timer_id) {
-  cleanupTasks.push_back([this, timer_id]() {
-    auto it = timers.find(timer_id);
+void Poller::resetTimer(TimerID id) {
+    auto it = timers.find(id);
     if (it != timers.end()) {
-      timers.erase(it);
+        it->second.expired = false;
+        if (it->second.repeat) {
+            it->second.expiry = SteadyClock::addMilliseconds(SteadyClock::now(), it->second.interval);
+        }
     }
-  });
 }
 
-void Poller::processCleanupTasks() {
-  for (auto &task : cleanupTasks) {
-    task();
-  }
-  cleanupTasks.clear();
+void Poller::destroyTimer(TimerID id) {
+  timers.erase(id);
 }
 
-int Poller::calculatePollTimeout() {
-  if (timers.empty()) {
-    return max_poll_timeout_ms;
-  }
-
-  auto now = SteadyClock::now();
-  auto next_expiry = SteadyClock::TimePoint::max();
-
-  // Find the earliest timer expiry
-  for (const auto &pair : timers) {
-    const auto &id = pair.first;
-    const auto &timer = pair.second;
-    if (timer.active && timer.expiry_time < next_expiry) {
-      next_expiry = timer.expiry_time;
+Pollable* Poller::getPollable(PollableID id) {
+    auto it = pollEntries.find(id);
+    if (it != pollEntries.end()) {
+        return it->second.pollable;
     }
-  }
-
-  if (next_expiry == SteadyClock::TimePoint::max()) {
-    return max_poll_timeout_ms; // No active timers, use default timeout
-  }
-
-  // Calculate milliseconds until next expiry
-  int timeout_ms = SteadyClock::durationMs(now, next_expiry);
-
-  // Ensure we don't return negative timeout or wait too long
-  return std::max(1, std::min(timeout_ms, max_poll_timeout_ms));
+    return nullptr;
 }
 
 void Poller::processExpiredTimers() {
   auto now = SteadyClock::now();
-  std::vector<TimerID> expired_timers;
 
-  // Find expired timers
   for (auto &pair : timers) {
-    const auto &id = pair.first;
-    auto &timer = pair.second;
-    if (timer.active && timer.expiry_time <= now) {
-      expired_timers.push_back(id);
-    }
-  }
+    TimerEntry &timer = pair.second;
+    
+    if (timer.expired) continue; // Already expired, waiting for reset
 
-  // Process expired timers
-  for (TimerID id : expired_timers) {
-    auto it = timers.find(id);
-    if (it != timers.end()) {
-      TimerEntry &timer = it->second;
-
-      // Execute callback
-      timer.callback();
-
-      if (timer.is_interval) {
-        // Reschedule interval timer
-        timer.expiry_time =
-            SteadyClock::addMilliseconds(now, timer.interval_ms);
-      } else {
-        // Remove one-time timer
-        timers.erase(it);
-      }
+    if (SteadyClock::durationMs(timer.expiry, now) >= 0) {
+      timer.expired = true;
     }
   }
 }
@@ -353,17 +247,8 @@ bool Poller::hasNotificationPipe() const { return notification_pipe[0] != -1; }
 void Poller::drainNotificationPipe() {
   if (hasNotificationPipe()) {
     char buffer[256];
-    ssize_t bytes_read;
-
-    while ((bytes_read = read(notification_pipe[0], buffer, sizeof(buffer))) >
-           0) {
-      // Just drain the pipe, no action needed
-    }
-
-    // Check if we stopped because of EAGAIN/EWOULDBLOCK (normal for
-    // non-blocking) or because of an actual error
-    if (bytes_read == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
-      LOG_ERROR("Error draining notification pipe: ", strerror(errno));
+    while (read(notification_pipe[0], buffer, sizeof(buffer)) > 0) {
+      // Just drain
     }
   }
 }
