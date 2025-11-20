@@ -63,6 +63,7 @@ struct Poller {
 
   // Method to enable POLLOUT for a socket
   void enablePollout(PollableID socket_id);
+  void disablePollout(PollableID socket_id);
 
   // Notification methods for breaking poll() calls
   void notify(); // Wake up poll() call

@@ -65,13 +65,11 @@ bool Socket::start(const std::string &host, uint16_t port) {
 }
 
 void Socket::write(const std::string &data) {
-  bool was_empty = write_buffer.size() == 0;
   write_buffer.append(data.data(), data.size());
-
-  // Enable POLLOUT if buffer was empty
-  if (was_empty && poller) {
-    poller->enablePollout(id);
-  }
+  
+  // Note: POLLOUT is managed by SocketManager, not here.
+  // This keeps Socket independent of Poller and follows the manager pattern.
+  // SocketManager will automatically enable POLLOUT for sockets with pending writes.
 }
 
 bool Socket::handleRead() {

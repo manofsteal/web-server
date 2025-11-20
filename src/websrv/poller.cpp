@@ -51,6 +51,10 @@ void Poller::enablePollout(PollableID socket_id) {
   pollout_pending[socket_id] = true;
 }
 
+void Poller::disablePollout(PollableID socket_id) {
+  pollout_pending.erase(socket_id);
+}
+
 void Poller::notify() {
   // Write a byte to the notification pipe to wake up poll()
   if (hasNotificationPipe()) {

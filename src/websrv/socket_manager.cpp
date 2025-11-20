@@ -47,6 +47,22 @@ std::vector<SocketResult> SocketManager::process(const std::vector<PollerEvent>&
         }
     }
 
+    // After processing events, manage POLLOUT polling for all sockets.
+    // This eliminates the need for Socket::write() to call poller->enablePollout(),
+    // keeping Socket independent of Poller and following the manager pattern.
+    for (auto& pair : sockets_) {
+        Socket* socket = pair.second;
+        PollableID id = pair.first;
+        
+        if (socket->write_buffer.size() > 0) {
+            // Socket has pending writes - enable POLLOUT to get notified when writable
+            socket->poller->enablePollout(id);
+        } else {
+            // Write buffer is empty - disable POLLOUT to avoid unnecessary wake-ups
+            socket->poller->disablePollout(id);
+        }
+    }
+
     return results;
 }
 
