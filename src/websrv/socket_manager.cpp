@@ -15,6 +15,14 @@ void SocketManager::removeSocket(Socket* socket) {
     }
 }
 
+void SocketManager::removeClosedSockets(const std::vector<SocketResult>& results) {
+    for (const auto& result : results) {
+        if (result.type == SocketResult::CLOSED || result.type == SocketResult::ERROR) {
+            removeSocket(result.socket);
+        }
+    }
+}
+
 std::vector<SocketResult> SocketManager::process(const std::vector<PollerEvent>& events) {
     std::vector<SocketResult> results;
 

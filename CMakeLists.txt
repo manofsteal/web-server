@@ -19,6 +19,7 @@ set(CORE_SOURCES
     src/websrv/listener.cpp
     src/websrv/listener_manager.cpp
     src/websrv/socket_manager.cpp
+    src/websrv/network_system.cpp
     src/websrv/area_allocator.cpp
     src/websrv/poller_memory.cpp
 )
@@ -126,3 +127,6 @@ target_link_libraries(socket_error_test pthread)
 
 add_executable(manager_ops_test ${CORE_SOURCES} test/manager_ops_test.cpp)
 target_link_libraries(manager_ops_test pthread)
+
+add_executable(network_system_test ${CORE_SOURCES} test/network_system_test.cpp)
+target_link_libraries(network_system_test pthread)

@@ -17,6 +17,7 @@ class SocketManager {
 public:
     void addSocket(Socket* socket);
     void removeSocket(Socket* socket);
+    void removeClosedSockets(const std::vector<SocketResult>& results);
     
     // Process events for managed sockets
     std::vector<SocketResult> process(const std::vector<PollerEvent>& events);
