@@ -47,9 +47,7 @@ set(WEBSOCKET_SOURCES
     src/websrv/websocket_server.cpp
 )
 
-# Create timer test (minimal dependencies)
-add_executable(timer_test src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp test/timer_test.cpp)
-target_link_libraries(timer_test pthread)
+
 
 # Create socket test (use minimal sources to avoid WebSocket dependencies)
 add_executable(socket_test ${ALLOCATOR_TEST_SOURCES} test/socket_test.cpp)
@@ -113,6 +111,18 @@ target_compile_definitions(area_allocator_enabled_test PRIVATE USE_AREA_ALLOCATO
 add_executable(make_functions_test ${ALLOCATOR_TEST_SOURCES} test/make_functions_test.cpp)
 target_link_libraries(make_functions_test pthread)
 
-# Game loop test
+# Game loop tests
 add_executable(game_loop_test ${CORE_SOURCES} test/game_loop_test.cpp)
 target_link_libraries(game_loop_test pthread)
+
+add_executable(timer_test ${CORE_SOURCES} test/timer_test.cpp)
+target_link_libraries(timer_test pthread)
+
+add_executable(multi_connection_test ${CORE_SOURCES} test/multi_connection_test.cpp)
+target_link_libraries(multi_connection_test pthread)
+
+add_executable(socket_error_test ${CORE_SOURCES} test/socket_error_test.cpp)
+target_link_libraries(socket_error_test pthread)
+
+add_executable(manager_ops_test ${CORE_SOURCES} test/manager_ops_test.cpp)
+target_link_libraries(manager_ops_test pthread)
