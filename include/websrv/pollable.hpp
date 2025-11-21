@@ -8,6 +8,10 @@ using PollableID = uint32_t;
 
 enum class PollableType { SOCKET, LISTENER, TIMER };
 
+// Forward declaration
+class Buffer;
+class BufferManager;
+
 class Poller;
 struct Pollable {
   PollableType type = PollableType::SOCKET;
@@ -19,6 +23,11 @@ struct Pollable {
   using StopFunction = std::function<void()>;
 
   StopFunction stopFunction = []() {};
+  virtual bool handleError(short revents);
+
+  // Buffer management helpers (delegate to BufferManager)
+  static Buffer* getBuffer();
+  static void releaseBuffer(Buffer* buffer);
 };
 
 class PollableIDManager {

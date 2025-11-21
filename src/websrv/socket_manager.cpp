@@ -62,7 +62,7 @@ std::vector<SocketResult> SocketManager::process(const std::vector<PollerEvent>&
         Socket* socket = pair.second;
         PollableID id = pair.first;
         
-        if (socket->write_buffer.size() > 0) {
+        if (!socket->pending_write_buffers.empty()) {
             // Socket has pending writes - enable POLLOUT to get notified when writable
             socket->poller->enablePollout(id);
         } else {

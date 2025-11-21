@@ -14,6 +14,7 @@ include_directories(include)
 # Common source files (without WebSocket components that require OpenSSL)
 # Core source files (refactored)
 set(CORE_SOURCES
+    src/websrv/pollable.cpp
     src/websrv/poller.cpp
     src/websrv/socket.cpp
     src/websrv/listener.cpp
@@ -33,6 +34,7 @@ set(COMMON_SOURCES
 
 # Minimal sources for area allocator tests (no HTTP/WebSocket to avoid AreaAllocator + std::hash issues)
 set(ALLOCATOR_TEST_SOURCES
+    src/websrv/pollable.cpp
     src/websrv/poller.cpp
     src/websrv/socket.cpp
     src/websrv/listener.cpp
@@ -55,10 +57,10 @@ add_executable(socket_test ${ALLOCATOR_TEST_SOURCES} test/socket_test.cpp)
 target_link_libraries(socket_test pthread)
 
 # Create socket tests (minimal dependencies)
-add_executable(ping_pong_server_test src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp test/ping_pong_server_test.cpp)
+add_executable(ping_pong_server_test src/websrv/pollable.cpp src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp test/ping_pong_server_test.cpp)
 target_link_libraries(ping_pong_server_test pthread)
 
-add_executable(ping_pong_client_test src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp test/ping_pong_client_test.cpp)
+add_executable(ping_pong_client_test src/websrv/pollable.cpp src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp test/ping_pong_client_test.cpp)
 target_link_libraries(ping_pong_client_test pthread)
 
 # Create HTTP client test 2 (use minimal sources to avoid WebSocket dependencies)
@@ -70,11 +72,11 @@ add_executable(http_server_test ${WEBSOCKET_SOURCES} test/http_server_test.cpp)
 target_link_libraries(http_server_test pthread OpenSSL::SSL OpenSSL::Crypto)
 
 # Create sequence test
-add_executable(sequence_test src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp src/websrv/sequence.cpp test/sequence_test.cpp)
+add_executable(sequence_test src/websrv/pollable.cpp src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp src/websrv/sequence.cpp test/sequence_test.cpp)
 target_link_libraries(sequence_test pthread)
 
 # Create sequence resumable test
-add_executable(sequence_resumable_test src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp src/websrv/sequence.cpp test/sequence_resumable_test.cpp)
+add_executable(sequence_resumable_test src/websrv/pollable.cpp src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp src/websrv/sequence.cpp test/sequence_resumable_test.cpp)
 target_link_libraries(sequence_resumable_test pthread)
 
 # Create WebSocket client test

@@ -11,6 +11,25 @@ namespace websrv {
 
 Socket::Socket() : Pollable() {
   type = PollableType::SOCKET;
+  // Buffers are created on-demand
+}
+
+Socket::~Socket() {
+  // Release all pending read buffers
+  for (Buffer* buf : pending_read_buffers) {
+    if (buf) {
+      Pollable::releaseBuffer(buf);
+    }
+  }
+  pending_read_buffers.clear();
+  
+  // Release all pending write buffers
+  for (Buffer* buf : pending_write_buffers) {
+    if (buf) {
+      Pollable::releaseBuffer(buf);
+    }
+  }
+  pending_write_buffers.clear();
 }
 
 bool Socket::start(const std::string &host, uint16_t port) {
@@ -64,8 +83,11 @@ bool Socket::start(const std::string &host, uint16_t port) {
   return true;
 }
 
-void Socket::write(const std::string &data) {
-  write_buffer.append(data.data(), data.size());
+void Socket::write(Buffer* buffer) {
+  if (!buffer) return;
+  
+  // Add buffer to pending write queue
+  pending_write_buffers.push_back(buffer);
   
   // Note: POLLOUT is managed by SocketManager, not here.
   // This keeps Socket independent of Poller and follows the manager pattern.
@@ -75,11 +97,21 @@ void Socket::write(const std::string &data) {
 bool Socket::handleRead() {
     if (file_descriptor < 0) return false;
     
-    char buffer[4096];
-    ssize_t bytes_read = ::read(file_descriptor, buffer, sizeof(buffer));
+    // Get or create current read buffer
+    Buffer* buffer = nullptr;
+    if (pending_read_buffers.empty() || pending_read_buffers.back()->size() >= 4096) {
+        // Create new buffer if none exists or current is getting full
+        buffer = Pollable::getBuffer();
+        pending_read_buffers.push_back(buffer);
+    } else {
+        buffer = pending_read_buffers.back();
+    }
+    
+    char temp[4096];
+    ssize_t bytes_read = ::read(file_descriptor, temp, sizeof(temp));
 
     if (bytes_read > 0) {
-        read_buffer.insert(read_buffer.end(), buffer, buffer + bytes_read);
+        buffer->append(temp, bytes_read);
         return true;
     } else if (bytes_read == 0) {
         // EOF - connection closed
@@ -93,20 +125,32 @@ bool Socket::handleRead() {
 }
 
 bool Socket::handleWrite() {
-    if (file_descriptor < 0 || write_buffer.size() == 0) return false;
+    if (file_descriptor < 0 || pending_write_buffers.empty()) return false;
+    
+    // Get the first pending buffer
+    Buffer* buffer = pending_write_buffers.front();
+    if (!buffer || buffer->size() == 0) {
+        // Empty buffer, remove and try next
+        pending_write_buffers.erase(pending_write_buffers.begin());
+        Pollable::releaseBuffer(buffer);
+        return !pending_write_buffers.empty();
+    }
     
     // Extract data from Buffer to write
     std::vector<char> temp;
-    size_t size = write_buffer.size();
+    size_t size = buffer->size();
     temp.reserve(size);
     for(size_t i = 0; i < size; ++i) {
-        temp.push_back(write_buffer.getAt(i));
+        temp.push_back(buffer->getAt(i));
     }
     
     ssize_t bytes_written = ::write(file_descriptor, temp.data(), temp.size());
     
     if (bytes_written > 0) {
-        write_buffer.clear(); // Simplification: assume all written
+        // For now, assume all written (simplification)
+        // Remove buffer from queue and release it
+        pending_write_buffers.erase(pending_write_buffers.begin());
+        Pollable::releaseBuffer(buffer);
         return true;
     }
     return false;
@@ -119,15 +163,47 @@ bool Socket::handleError(short revents) {
     return false;
 }
 
-BufferView Socket::receive() {
-    if (read_buffer.empty()) {
-        return BufferView{};
+std::vector<Buffer*> Socket::read() {
+    // Transfer ownership of all buffers to caller
+    std::vector<Buffer*> result = std::move(pending_read_buffers);
+    pending_read_buffers.clear();
+    return result;
+}
+
+Buffer* Socket::getReadBuffer() {
+    // Return the last pending read buffer if it exists
+    // Otherwise create a new one
+    if (!pending_read_buffers.empty()) {
+        return pending_read_buffers.back();
     }
-    return BufferView{read_buffer.data(), read_buffer.size()};
+    
+    // Create new buffer and add to queue
+    Buffer* buf = Pollable::getBuffer();
+    pending_read_buffers.push_back(buf);
+    return buf;
 }
 
 void Socket::clearReadBuffer() {
-    read_buffer.clear();
+    // Release all read buffers
+    for (Buffer* buf : pending_read_buffers) {
+        if (buf) {
+            Pollable::releaseBuffer(buf);
+        }
+    }
+    pending_read_buffers.clear();
+}
+
+Buffer* Socket::getWriteBuffer() {
+    // Return the last pending buffer if it exists and is not empty
+    // Otherwise create a new buffer
+    if (!pending_write_buffers.empty()) {
+        return pending_write_buffers.back();
+    }
+    
+    // Create new buffer and add to queue
+    Buffer* buf = Pollable::getBuffer();
+    pending_write_buffers.push_back(buf);
+    return buf;
 }
 
 } // namespace websrv

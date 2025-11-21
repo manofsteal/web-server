@@ -5,6 +5,8 @@
 
 using namespace websrv;
 
+
+
 void runServer() {
     LOG("=== Running in SERVER mode ===");
     
@@ -30,18 +32,16 @@ void runServer() {
                 case NetworkEvent::ACCEPTED:
                     connections_accepted++;
                     LOG("✓ Connection accepted (total: ", connections_accepted, ")");
-                    event.socket->write("Welcome from server");
+                    event.socket->write(toBuffer("Welcome from server"));
                     break;
                     
                 case NetworkEvent::SOCKET_DATA: {
-                    auto view = event.socket->receive();
-                    std::string msg(view.data, view.size);
-                    event.socket->clearReadBuffer();
+                    std::string msg = fromBuffer(event.socket->read());
                     
                     LOG("✓ Received: ", msg);
                     
                     // Echo back
-                    event.socket->write("Echo: " + msg);
+                    event.socket->write(toBuffer("Echo: " + msg));
                     messages_echoed++;
                     break;
                 }
@@ -83,7 +83,7 @@ void runClient() {
         // Send next message if not waiting
         if (!waiting_for_echo) {
             std::string msg = "Message " + std::to_string(current_message);
-            client->write(msg);
+            client->write(toBuffer(msg));
             waiting_for_echo = true;
             
             if ((current_message + 1) % 10 == 0) {
@@ -97,9 +97,7 @@ void runClient() {
         for (const auto& event : events) {
             switch (event.type) {
                 case NetworkEvent::SOCKET_DATA: {
-                    auto view = event.socket->receive();
-                    std::string msg(view.data, view.size);
-                    event.socket->clearReadBuffer();
+                    std::string msg = fromBuffer(event.socket->read());
                     
                     // Handle welcome message (may be concatenated with first echo)
                     if (msg.find("Welcome from server") == 0) {
@@ -178,19 +176,18 @@ void runIntegrated() {
                 case NetworkEvent::ACCEPTED:
                     LOG("✓ Server accepted connection");
                     server_accepted = true;
-                    event.socket->write("Welcome");
+                    event.socket->write(toBuffer("Welcome"));
                     break;
                     
                 case NetworkEvent::SOCKET_DATA: {
-                    auto view = event.socket->receive();
-                    std::string msg(view.data, view.size);
-                    event.socket->clearReadBuffer();
+                    std::string msg = fromBuffer(event.socket->read());
+                
                     
                     LOG("✓ Received data: ", msg);
                     
                     if (msg == "Welcome") {
                         client_received_welcome = true;
-                        event.socket->write("Echo");
+                        event.socket->write(toBuffer("Echo"));
                     } else if (msg == "Echo") {
                         server_received_echo = true;
                     }

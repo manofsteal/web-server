@@ -49,21 +49,26 @@ int main() {
             LOG("Server accepted connection");
             server_accepted = true;
             socketManager.addSocket(res.new_socket);
-            res.new_socket->write("Welcome");
+            res.new_socket->write(toBuffer("Welcome"));
         }
         
         // 3. Process Sockets (pass all events, manager will filter)
         auto socket_results = socketManager.process(pollerEvents);
         for (const auto& res : socket_results) {
             if (res.type == SocketResult::DATA) {
-                auto view = res.socket->receive();
-                std::string msg(view.data, view.size);
+                auto buffers = res.socket->read();
+                std::string msg = fromBuffer(buffers);
+                
+                // Release buffers
+                for (Buffer* buf : buffers) {
+                    releaseBuffer(buf);
+                }
+                
                 LOG("Received data: ", msg);
-                res.socket->clearReadBuffer();
                 
                 if (msg == "Welcome") {
                     client_connected = true;
-                    res.socket->write("Echo");
+                    res.socket->write(toBuffer("Echo"));
                 } else if (msg == "Echo") {
                     data_received = true;
                     data_echoed = true;
