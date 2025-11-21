@@ -129,29 +129,32 @@ bool Socket::handleWrite() {
     
     // Get the first pending buffer
     Buffer* buffer = pending_write_buffers.front();
-    if (!buffer || buffer->size() == 0) {
+    if (!buffer || buffer->empty()) {
         // Empty buffer, remove and try next
         pending_write_buffers.erase(pending_write_buffers.begin());
         Pollable::releaseBuffer(buffer);
         return !pending_write_buffers.empty();
     }
     
-    // Extract data from Buffer to write
-    std::vector<char> temp;
-    size_t size = buffer->size();
-    temp.reserve(size);
-    for(size_t i = 0; i < size; ++i) {
-        temp.push_back(buffer->getAt(i));
-    }
-    
-    ssize_t bytes_written = ::write(file_descriptor, temp.data(), temp.size());
+    // Direct write from buffer (zero-copy from user perspective)
+    ssize_t bytes_written = ::write(file_descriptor, buffer->data(), buffer->size());
     
     if (bytes_written > 0) {
-        // For now, assume all written (simplification)
-        // Remove buffer from queue and release it
-        pending_write_buffers.erase(pending_write_buffers.begin());
-        Pollable::releaseBuffer(buffer);
+        // Consume written bytes
+        buffer->consume(bytes_written);
+        
+        // If buffer empty, release it
+        if (buffer->empty()) {
+            pending_write_buffers.erase(pending_write_buffers.begin());
+            Pollable::releaseBuffer(buffer);
+        }
         return true;
+    } else if (bytes_written < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return false;
+        }
+        // Error handling
+        return false;
     }
     return false;
 }

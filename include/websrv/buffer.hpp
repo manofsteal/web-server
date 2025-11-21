@@ -6,87 +6,60 @@
 namespace websrv {
 
 class Buffer {
+public:
+    using value_type = uint8_t;
+    using container_type = std::vector<value_type>;
+
 private:
-  static constexpr size_t BLOCK_SIZE = 100 * 1024;
-  std::list<std::vector<char>> blocks_;
-  size_t total_size_ = 0;
+    container_type data_;
 
 public:
-  // Simple append operation
-  void append(const char *data, size_t len) {
-    if (len == 0)
-      return;
-
-    size_t remaining = len;
-    const char *current = data;
-
-    while (remaining > 0) {
-      // Get or create current block
-      if (blocks_.empty() || blocks_.back().size() >= BLOCK_SIZE) {
-        blocks_.emplace_back();
-        blocks_.back().reserve(BLOCK_SIZE);
-      }
-
-      // Calculate how much we can write to current block
-      size_t space_in_block = BLOCK_SIZE - blocks_.back().size();
-      size_t to_write = std::min(remaining, space_in_block);
-
-      // Append data to current block
-      blocks_.back().insert(blocks_.back().end(), current, current + to_write);
-
-      current += to_write;
-      remaining -= to_write;
-      total_size_ += to_write;
-    }
-  }
-
-  // Get byte at specific position
-  char getAt(size_t pos) const {
-    if (pos >= total_size_) {
-      return 0; // Or throw exception if preferred
+    // Append data
+    void append(const char* data, size_t len) {
+        const uint8_t* ptr = reinterpret_cast<const uint8_t*>(data);
+        data_.insert(data_.end(), ptr, ptr + len);
     }
 
-    size_t block_idx = pos / BLOCK_SIZE;
-    auto it = blocks_.begin();
-    std::advance(it, block_idx);
-    size_t block_pos = pos % BLOCK_SIZE;
-
-    return (*it)[block_pos];
-  }
-
-  // Set byte at specific position
-  void setAt(size_t pos, char value) {
-    if (pos >= total_size_) {
-      return; // Or throw exception if preferred
+    void append(const uint8_t* data, size_t len) {
+        data_.insert(data_.end(), data, data + len);
     }
 
-    size_t block_idx = pos / BLOCK_SIZE;
-    auto it = blocks_.begin();
-    std::advance(it, block_idx);
-    size_t block_pos = pos % BLOCK_SIZE;
+    template <typename Container>
+    void append(const Container& container) {
+        const auto* ptr = reinterpret_cast<const uint8_t*>(container.data());
+        data_.insert(data_.end(), ptr, ptr + container.size());
+    }
 
-    (*it)[block_pos] = value;
-  }
+    // Get byte at position
+    char getAt(size_t pos) const {
+        if (pos < data_.size()) {
+            return static_cast<char>(data_[pos]);
+        }
+        return 0;
+    }
 
-  // Get total size
-  size_t size() const { return total_size_; }
+    // Direct access to data
+    const uint8_t* data() const { return data_.data(); }
+    uint8_t* data() { return data_.data(); }
+    
+    // Size and capacity
+    size_t size() const { return data_.size(); }
+    bool empty() const { return data_.empty(); }
+    void reserve(size_t n) { data_.reserve(n); }
+    void clear() { data_.clear(); }
 
-  // Clear all data
-  void clear() {
-    blocks_.clear();
-    total_size_ = 0;
-  }
+    // Consume bytes from front (efficient enough for vector if not too frequent, 
+    // or we could use an offset, but let's keep it simple for now as per request)
+    void consume(size_t bytes) {
+        if (bytes >= data_.size()) {
+            data_.clear();
+        } else {
+            data_.erase(data_.begin(), data_.begin() + bytes);
+        }
+    }
 
-  // Append data from containers with .data() and .size()
-  template <typename Container> void append(const Container &container) {
-    append(container.data(), container.size());
-  }
-
-  // Get number of blocks
-  size_t blockCount() const { return blocks_.size(); }
-
-  // Get block size
-  static constexpr size_t blockSize() { return BLOCK_SIZE; }
+    // Expose internal vector if needed
+    const container_type& getVector() const { return data_; }
 };
 
 } // namespace websrv
