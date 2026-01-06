@@ -5,13 +5,15 @@ project(web_server)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Fix for macOS SDK issues - use the correct SDK path
+execute_process(COMMAND xcrun --show-sdk-path OUTPUT_VARIABLE CMAKE_OSX_SYSROOT OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 # Find OpenSSL
 find_package(OpenSSL REQUIRED)
 
 # Add include directories
 include_directories(include)
 
-# Common source files (without WebSocket components that require OpenSSL)
 # Core source files (refactored)
 set(CORE_SOURCES
     src/websrv/pollable.cpp
@@ -21,8 +23,6 @@ set(CORE_SOURCES
     src/websrv/listener_manager.cpp
     src/websrv/socket_manager.cpp
     src/websrv/network_system.cpp
-    src/websrv/area_allocator.cpp
-    src/websrv/poller_memory.cpp
 )
 
 # Common source files (without WebSocket components that require OpenSSL)
@@ -32,17 +32,6 @@ set(COMMON_SOURCES
     src/websrv/http_server.cpp
 )
 
-# Minimal sources for area allocator tests (no HTTP/WebSocket to avoid AreaAllocator + std::hash issues)
-set(ALLOCATOR_TEST_SOURCES
-    src/websrv/pollable.cpp
-    src/websrv/poller.cpp
-    src/websrv/socket.cpp
-    src/websrv/listener.cpp
-    src/websrv/sequence.cpp
-    src/websrv/area_allocator.cpp
-    src/websrv/poller_memory.cpp
-)
-
 # WebSocket source files (require OpenSSL)
 set(WEBSOCKET_SOURCES
     ${COMMON_SOURCES}
@@ -50,10 +39,17 @@ set(WEBSOCKET_SOURCES
     src/websrv/websocket_server.cpp
 )
 
+# Minimal sources for basic tests
+set(MINIMAL_SOURCES
+    src/websrv/pollable.cpp
+    src/websrv/poller.cpp
+    src/websrv/socket.cpp
+    src/websrv/listener.cpp
+    src/websrv/sequence.cpp
+)
 
-
-# Create socket test (use minimal sources to avoid WebSocket dependencies)
-add_executable(socket_test ${ALLOCATOR_TEST_SOURCES} test/socket_test.cpp)
+# Create socket test
+add_executable(socket_test ${MINIMAL_SOURCES} test/socket_test.cpp)
 target_link_libraries(socket_test pthread)
 
 # Create socket tests (minimal dependencies)
@@ -63,8 +59,8 @@ target_link_libraries(ping_pong_server_test pthread)
 add_executable(ping_pong_client_test src/websrv/pollable.cpp src/websrv/poller.cpp src/websrv/socket.cpp src/websrv/listener.cpp test/ping_pong_client_test.cpp)
 target_link_libraries(ping_pong_client_test pthread)
 
-# Create HTTP client test 2 (use minimal sources to avoid WebSocket dependencies)
-add_executable(http_client_2_test ${ALLOCATOR_TEST_SOURCES} src/websrv/http_client.cpp test/http_client_2_test.cpp)
+# Create HTTP client test 2
+add_executable(http_client_2_test ${MINIMAL_SOURCES} src/websrv/http_client.cpp test/http_client_2_test.cpp)
 target_link_libraries(http_client_2_test pthread)
 
 # Create HTTP server test (now requires WebSocket sources for upgrade support)
@@ -98,21 +94,6 @@ target_link_libraries(websocket_server_test pthread OpenSSL::SSL OpenSSL::Crypto
 # Create unified HTTP + WebSocket server test
 add_executable(unified_server_test ${WEBSOCKET_SOURCES} test/unified_server_test.cpp)
 target_link_libraries(unified_server_test pthread OpenSSL::SSL OpenSSL::Crypto)
-
-# Create container test (use minimal sources to avoid WebSocket dependencies)
-add_executable(container_test ${ALLOCATOR_TEST_SOURCES} test/container_test.cpp)
-target_link_libraries(container_test pthread)
-
-# Create area allocator test (use minimal sources to avoid WebSocket dependencies)
-add_executable(area_allocator_test ${ALLOCATOR_TEST_SOURCES} test/area_allocator_test.cpp)
-target_link_libraries(area_allocator_test pthread)
-add_executable(simple_area_test ${ALLOCATOR_TEST_SOURCES} test/simple_area_test.cpp)
-target_link_libraries(simple_area_test pthread)
-add_executable(area_allocator_enabled_test ${ALLOCATOR_TEST_SOURCES} test/area_allocator_enabled_test.cpp)
-target_link_libraries(area_allocator_enabled_test pthread)
-target_compile_definitions(area_allocator_enabled_test PRIVATE USE_AREA_ALLOCATORS=1)
-add_executable(make_functions_test ${ALLOCATOR_TEST_SOURCES} test/make_functions_test.cpp)
-target_link_libraries(make_functions_test pthread)
 
 # Game loop tests
 add_executable(game_loop_test ${CORE_SOURCES} test/game_loop_test.cpp)
