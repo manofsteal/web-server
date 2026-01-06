@@ -18,7 +18,7 @@ struct Sequence {
   Sequence(Poller &poller);
 
   // Tasks
-  void addTask(Poller::TimerCallback callback);
+  void addTask(std::function<void()> callback);
   void addWait(uint32_t period_ms);
   void addWait(std::function<bool()> condition, uint32_t period_ms = 10,
                uint32_t timeout_ms = 1000);

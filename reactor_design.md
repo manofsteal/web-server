@@ -1,4 +1,4 @@
-# ASIO Proactor Design: A Critical Analysis and Minimal Reactor Alternative
+/# ASIO Proactor Design: A Critical Analysis and Minimal Reactor Alternative
 
 **Author's Note**: This document analyzes fundamental design constraints in Proactor-style APIs (specifically ASIO) from a C++ systems engineering perspective. The focus is on lifetime semantics, ownership models, and memory management trade-offs—not micro-optimizations. A minimal Reactor-based alternative is proposed that prioritizes explicit control and deterministic resource management.
 

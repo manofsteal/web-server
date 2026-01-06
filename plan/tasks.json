@@ -1,0 +1,494 @@
+{
+  "project": "Reactor Pattern Network Library",
+  "design_doc": "reactor_design.md",
+  "principles": [
+    "C++14 only - no fancy features",
+    "No virtual functions - no inheritance",
+    "No class dependencies - each class is self-contained",
+    "No passing references between classes - communicate through return values only",
+    "Explicit control flow - user controls everything",
+    "Reuse working code where possible - don't rewrite what already works"
+  ],
+  "tasks": [
+    {
+      "id": 1,
+      "category": "foundation",
+      "component": "Fd",
+      "description": "Implement Fd struct (RAII file descriptor wrapper)",
+      "files": [
+        "include/websrv/fd.hpp",
+        "test/fd_test.cpp"
+      ],
+      "steps": [
+        "Create include/websrv/fd.hpp with Fd struct",
+        "Implement constructor, destructor, move semantics",
+        "Make move-only (delete copy constructor/assignment)",
+        "Create test/fd_test.cpp",
+        "Test: default constructor creates invalid fd (-1)",
+        "Test: constructor with valid fd stores it correctly",
+        "Test: destructor closes fd",
+        "Test: move constructor transfers ownership",
+        "Test: move assignment transfers ownership and closes old fd",
+        "Add fd_test to CMakeLists.txt",
+        "Build and run test to verify all pass"
+      ],
+      "passes": false,
+      "dependencies": []
+    },
+    {
+      "id": 2,
+      "category": "foundation",
+      "component": "Event",
+      "description": "Implement Event struct (plain data for poll events)",
+      "files": [
+        "include/websrv/event.hpp",
+        "test/event_test.cpp"
+      ],
+      "steps": [
+        "Create include/websrv/event.hpp with Event struct",
+        "Add fd and flags members",
+        "Implement helper methods: readable(), writable(), error()",
+        "Create test/event_test.cpp",
+        "Test: default constructor initializes to invalid state",
+        "Test: constructor with fd and flags stores correctly",
+        "Test: readable() returns true when POLLIN set",
+        "Test: writable() returns true when POLLOUT set",
+        "Test: error() returns true when POLLERR/POLLHUP/POLLNVAL set",
+        "Add event_test to CMakeLists.txt",
+        "Build and run test to verify all pass"
+      ],
+      "passes": false,
+      "dependencies": []
+    },
+    {
+      "id": 3,
+      "category": "core",
+      "component": "Poller",
+      "description": "Implement Poller struct (self-contained event loop using poll())",
+      "files": [
+        "include/websrv/poller.hpp",
+        "test/poller_test.cpp"
+      ],
+      "steps": [
+        "Create include/websrv/poller.hpp with Poller struct",
+        "Add std::vector<pollfd> fds and std::vector<Event> events members",
+        "Implement add(int fd, int interest) - returns index",
+        "Implement modify(int fd, int interest)",
+        "Implement remove(int fd)",
+        "Implement poll(int timeout_ms) - returns event count",
+        "Implement event_count() and get_event(idx) accessors",
+        "Make non-copyable (delete copy constructor/assignment)",
+        "Create test/poller_test.cpp",
+        "Test: add() registers fd and returns index",
+        "Test: modify() updates interest for existing fd",
+        "Test: remove() unregisters fd",
+        "Test: poll() with no fds returns 0",
+        "Test: poll() with pipe fd detects readability",
+        "Test: poll() timeout works correctly",
+        "Test: get_event() returns correct Event data",
+        "Add poller_test to CMakeLists.txt",
+        "Build and run test to verify all pass"
+      ],
+      "passes": false,
+      "dependencies": [2]
+    },
+    {
+      "id": 4,
+      "category": "core",
+      "component": "Timer/TimerQueue",
+      "description": "Implement Timer and TimerQueue structs (self-contained timer management)",
+      "files": [
+        "include/websrv/timer_queue.hpp",
+        "test/timer_queue_test.cpp"
+      ],
+      "steps": [
+        "Create include/websrv/timer_queue.hpp",
+        "Define Timer struct with deadline, id, and operator>",
+        "Define TimerQueue struct with priority_queue, cancelled set, next_id",
+        "Implement schedule(int delay_ms) - returns timer ID",
+        "Implement cancel(uint64_t timer_id)",
+        "Implement next_timeout_ms() - returns timeout for next timer",
+        "Implement fire_expired() - returns count of expired timers",
+        "Implement expired_count() and get_expired(idx) accessors",
+        "Make non-copyable",
+        "Create test/timer_queue_test.cpp",
+        "Test: schedule() returns unique IDs",
+        "Test: next_timeout_ms() returns correct timeout",
+        "Test: next_timeout_ms() returns -1 when no timers",
+        "Test: fire_expired() returns expired timer IDs",
+        "Test: cancel() prevents timer from firing",
+        "Test: multiple timers fire in correct order",
+        "Test: cancelled timers are cleaned up",
+        "Add timer_queue_test to CMakeLists.txt",
+        "Build and run test to verify all pass"
+      ],
+      "passes": false,
+      "dependencies": []
+    },
+    {
+      "id": 5,
+      "category": "networking",
+      "component": "TcpConnection",
+      "description": "Implement TcpConnection struct (unified for client and server)",
+      "files": [
+        "include/websrv/tcp_connection.hpp",
+        "test/tcp_connection_test.cpp"
+      ],
+      "steps": [
+        "Create include/websrv/tcp_connection.hpp",
+        "Add members: Fd socket, rx_buffer, tx_buffer, want_write, connected, closed",
+        "Implement default constructor (for client)",
+        "Implement constructor with Fd (for accepted connections)",
+        "Implement connect(host, port) - non-blocking connect, returns 0/-1/-2",
+        "Implement check_connected() - checks if async connect completed",
+        "Implement send(data, len) - queues data to tx_buffer",
+        "Implement handle_read() - reads into rx_buffer, returns state change",
+        "Implement handle_write() - writes from tx_buffer, returns state change",
+        "Implement handle_error() - marks connection closed",
+        "Implement accessors: received(), clear_received(), get_fd(), is_connected(), is_closed(), needs_write()",
+        "Make non-copyable",
+        "Create test/tcp_connection_test.cpp",
+        "Test: default constructor creates disconnected state",
+        "Test: constructor with Fd creates connected state",
+        "Test: send() queues data and sets want_write",
+        "Test: handle_read() reads data into rx_buffer (using pipe for testing)",
+        "Test: handle_write() sends data from tx_buffer (using pipe for testing)",
+        "Test: handle_error() marks as closed",
+        "Test: state transitions work correctly",
+        "Add tcp_connection_test to CMakeLists.txt",
+        "Build and run test to verify all pass"
+      ],
+      "passes": false,
+      "dependencies": [1]
+    },
+    {
+      "id": 6,
+      "category": "networking",
+      "component": "Listener",
+      "description": "Implement Listener struct (server socket management)",
+      "files": [
+        "include/websrv/listener.hpp",
+        "test/listener_test.cpp"
+      ],
+      "steps": [
+        "Create include/websrv/listener.hpp",
+        "Add members: Fd listen_fd, std::vector<TcpConnection> connections, std::vector<size_t> new_indices",
+        "Implement constructor(int port) - creates listening socket",
+        "Implement static create_listener(port) helper",
+        "Implement accept_pending() - accepts all pending connections, returns count",
+        "Implement remove_closed() - removes closed connections, returns count",
+        "Implement accessors: get_listen_fd(), connection_count(), get_connection(idx), get_new_index(idx), new_connection_count(), valid()",
+        "Make non-copyable",
+        "Create test/listener_test.cpp",
+        "Test: constructor creates valid listening socket",
+        "Test: constructor returns invalid Listener on error (bad port)",
+        "Test: valid() returns correct state",
+        "Test: accept_pending() accepts new connections",
+        "Test: new_indices tracks newly accepted connections",
+        "Test: remove_closed() removes closed connections",
+        "Test: get_listen_fd() returns correct fd",
+        "Add listener_test to CMakeLists.txt",
+        "Build and run test to verify all pass"
+      ],
+      "passes": false,
+      "dependencies": [5]
+    },
+    {
+      "id": 7,
+      "category": "integration",
+      "component": "NetLoop",
+      "description": "Implement NetLoop struct (optional high-level wrapper)",
+      "files": [
+        "include/websrv/net_loop.hpp",
+        "test/net_loop_test.cpp"
+      ],
+      "steps": [
+        "Create include/websrv/net_loop.hpp",
+        "Add members: Poller poller, TimerQueue timers, bool running",
+        "Implement add_listener(listen_fd)",
+        "Implement add_connection(fd, interest)",
+        "Implement modify_connection(fd, interest)",
+        "Implement remove_connection(fd)",
+        "Implement add_timer(delay_ms) - returns timer ID",
+        "Implement cancel_timer(timer_id)",
+        "Implement step() - runs one iteration, returns event count",
+        "Implement run() - runs loop until stop()",
+        "Implement stop()",
+        "Implement fire_timers() - fires expired timers, returns count",
+        "Implement accessors: event_count(), get_event(idx), expired_timer_count(), get_expired_timer(idx)",
+        "Make non-copyable",
+        "Create test/net_loop_test.cpp",
+        "Test: add_listener() registers listener fd",
+        "Test: add_connection() registers connection fd",
+        "Test: modify_connection() updates interest",
+        "Test: remove_connection() unregisters fd",
+        "Test: add_timer() schedules timer",
+        "Test: step() integrates polling and timer timeout",
+        "Test: fire_timers() returns expired timer IDs",
+        "Test: run() and stop() control loop execution",
+        "Add net_loop_test to CMakeLists.txt",
+        "Build and run test to verify all pass"
+      ],
+      "passes": false,
+      "dependencies": [3, 4]
+    },
+    {
+      "id": 8,
+      "category": "example",
+      "component": "Echo Server (Primitives)",
+      "description": "Implement echo server using primitives directly (maximum control)",
+      "files": [
+        "examples/echo_server_primitives.cpp"
+      ],
+      "steps": [
+        "Create examples/ directory",
+        "Create examples/echo_server_primitives.cpp",
+        "Implement main() using Poller, TimerQueue, Listener directly",
+        "Register listener with poller",
+        "Schedule cleanup timer",
+        "Implement main loop with explicit poll() calls",
+        "Handle listener events (accept new connections)",
+        "Handle connection events (read/write)",
+        "Update poller interest based on connection state changes",
+        "Handle timer events (periodic cleanup)",
+        "Add detailed comments explaining explicit control flow",
+        "Add echo_server_primitives to CMakeLists.txt",
+        "Build and test manually (nc localhost 8080)",
+        "Verify echo behavior works"
+      ],
+      "passes": false,
+      "dependencies": [3, 4, 6]
+    },
+    {
+      "id": 9,
+      "category": "example",
+      "component": "Echo Server (NetLoop)",
+      "description": "Implement echo server using NetLoop (convenience wrapper)",
+      "files": [
+        "examples/echo_server_netloop.cpp"
+      ],
+      "steps": [
+        "Create examples/echo_server_netloop.cpp",
+        "Implement main() using NetLoop and Listener",
+        "Use NetLoop convenience methods instead of direct poller access",
+        "Show cleaner event handling with NetLoop",
+        "Add comments comparing to primitives approach",
+        "Add echo_server_netloop to CMakeLists.txt",
+        "Build and test manually (nc localhost 8081)",
+        "Verify echo behavior works",
+        "Compare code size/complexity to primitives version"
+      ],
+      "passes": false,
+      "dependencies": [7]
+    },
+    {
+      "id": 10,
+      "category": "example",
+      "component": "Client (async_connect)",
+      "description": "Implement simple client using async_connect() with NetLoop",
+      "files": [
+        "examples/simple_client.cpp"
+      ],
+      "steps": [
+        "Create examples/simple_client.cpp",
+        "Implement main() using NetLoop and TcpConnection",
+        "Use async_connect() for automatic NetLoop integration",
+        "Send test message to echo server",
+        "Handle connection events",
+        "Handle received data",
+        "Add simple_client to CMakeLists.txt",
+        "Build and test against echo server",
+        "Verify send/receive works"
+      ],
+      "passes": false,
+      "dependencies": [7, 9]
+    },
+    {
+      "id": 11,
+      "category": "example",
+      "component": "Client (manual connect)",
+      "description": "Implement client using manual connect() with Poller (full control)",
+      "files": [
+        "examples/manual_client.cpp"
+      ],
+      "steps": [
+        "Create examples/manual_client.cpp",
+        "Implement main() using Poller and TcpConnection directly",
+        "Use connect() for manual control",
+        "Manually manage poller registration and interest updates",
+        "Handle connection completion check",
+        "Handle I/O events manually",
+        "Add detailed comments showing full control",
+        "Add manual_client to CMakeLists.txt",
+        "Build and test against echo server",
+        "Compare to async_connect version"
+      ],
+      "passes": false,
+      "dependencies": [3, 5, 8]
+    },
+    {
+      "id": 12,
+      "category": "example",
+      "component": "Multiple Clients",
+      "description": "Implement example with multiple concurrent clients",
+      "files": [
+        "examples/multi_client.cpp"
+      ],
+      "steps": [
+        "Create examples/multi_client.cpp",
+        "Implement main() that connects to multiple servers",
+        "Use std::vector<TcpConnection> to manage multiple connections",
+        "Use async_connect() for each client",
+        "Handle events for all clients in unified loop",
+        "Track active connection count",
+        "Add multi_client to CMakeLists.txt",
+        "Build and test with multiple echo servers on different ports",
+        "Verify concurrent operation"
+      ],
+      "passes": false,
+      "dependencies": [10]
+    },
+    {
+      "id": 13,
+      "category": "advanced",
+      "component": "TcpConnection with NetLoop integration",
+      "description": "Add async_connect() method to TcpConnection for NetLoop integration",
+      "files": [
+        "include/websrv/tcp_connection.hpp",
+        "test/tcp_connection_async_test.cpp"
+      ],
+      "steps": [
+        "Add NetLoop* loop member to TcpConnection (nullable)",
+        "Implement async_connect(NetLoop&, host, port)",
+        "Auto-register with NetLoop on async_connect()",
+        "Auto-update NetLoop interest in check_connected()",
+        "Auto-update NetLoop interest in send()",
+        "Auto-update NetLoop interest in handle_read()",
+        "Auto-update NetLoop interest in handle_write()",
+        "Create test/tcp_connection_async_test.cpp",
+        "Test: async_connect() registers with NetLoop",
+        "Test: state changes update NetLoop interest correctly",
+        "Test: manual connect() still works without NetLoop",
+        "Update examples to use new async_connect()",
+        "Build and run all tests"
+      ],
+      "passes": false,
+      "dependencies": [7, 10]
+    },
+    {
+      "id": 14,
+      "category": "documentation",
+      "component": "README",
+      "description": "Create comprehensive README with usage examples",
+      "files": [
+        "README.md"
+      ],
+      "steps": [
+        "Create README.md in project root",
+        "Add project overview and design philosophy",
+        "Document build instructions",
+        "Add quick start guide with echo server example",
+        "Document all core components (Fd, Event, Poller, etc.)",
+        "Show usage patterns (primitives vs NetLoop)",
+        "Add API reference for each struct",
+        "Include client and server examples",
+        "Document testing approach",
+        "Add performance notes from reactor_design.md",
+        "Link to reactor_design.md for detailed rationale"
+      ],
+      "passes": false,
+      "dependencies": [13]
+    },
+    {
+      "id": 15,
+      "category": "integration",
+      "component": "Full Integration Test",
+      "description": "Create comprehensive integration test with client/server interaction",
+      "files": [
+        "test/integration_test.cpp"
+      ],
+      "steps": [
+        "Create test/integration_test.cpp",
+        "Implement echo server in background using NetLoop",
+        "Implement multiple clients connecting to server",
+        "Test: server accepts connections",
+        "Test: clients can send and receive data",
+        "Test: server echoes data correctly",
+        "Test: timer-based cleanup works",
+        "Test: connection close handling",
+        "Test: error handling",
+        "Test: concurrent operations",
+        "Add integration_test to CMakeLists.txt",
+        "Build and run test to verify all scenarios pass"
+      ],
+      "passes": false,
+      "dependencies": [13]
+    },
+    {
+      "id": 16,
+      "category": "cleanup",
+      "component": "Update CMakeLists.txt",
+      "description": "Ensure all components are properly integrated in build system",
+      "files": [
+        "CMakeLists.txt"
+      ],
+      "steps": [
+        "Review CMakeLists.txt for all new components",
+        "Ensure all tests are added",
+        "Ensure all examples are added",
+        "Add install targets if needed",
+        "Verify build works cleanly with no warnings",
+        "Test full rebuild from scratch",
+        "Document any CMake options or flags"
+      ],
+      "passes": false,
+      "dependencies": [15]
+    },
+    {
+      "id": 17,
+      "category": "validation",
+      "component": "Final Validation",
+      "description": "Run all tests and validate complete system",
+      "files": [],
+      "steps": [
+        "Clean build directory",
+        "Run cmake and make",
+        "Run all unit tests and verify they pass",
+        "Run integration test and verify it passes",
+        "Build all examples",
+        "Manually test echo_server_primitives",
+        "Manually test echo_server_netloop",
+        "Manually test simple_client against echo servers",
+        "Manually test multi_client",
+        "Review code against design principles",
+        "Verify no virtual functions used",
+        "Verify no class dependencies exist",
+        "Verify all communication via return values",
+        "Update reactor_design.md if needed based on implementation learnings"
+      ],
+      "passes": false,
+      "dependencies": [16]
+    }
+  ],
+  "workflow": {
+    "for_each_task": [
+      "Create/modify files as specified",
+      "Write comprehensive tests",
+      "Build and verify tests pass",
+      "Git add changed files",
+      "Git commit with message: '[Task {id}] {description}'",
+      "Mark task passes: true",
+      "Move to next task"
+    ]
+  },
+  "notes": [
+    "Each task is atomic and committable",
+    "Tests written before considering task complete",
+    "Build from simplest primitives to complex examples",
+    "Follow reactor_design.md principles strictly",
+    "No virtual functions, no inheritance (except trivial base types)",
+    "No exceptions - use return codes",
+    "All communication through return values",
+    "User controls event loop explicitly"
+  ]
+}
