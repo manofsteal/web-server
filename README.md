@@ -3,7 +3,7 @@
 A high-performance, cross-platform C++ web server built with an event-driven architecture using poll-based I/O multiplexing. The server supports sockets, listeners, and timers with platform-specific optimizations for Linux, macOS, and QNX.
 
 ## Features
-
+- **Zero-dependencies**
 - **Event-driven architecture** with poll-based I/O multiplexing
 - **Cross-platform timer support** (Linux timerfd, macOS kqueue, QNX pulses)
 - **Socket management** with automatic connection handling
@@ -19,6 +19,37 @@ A high-performance, cross-platform C++ web server built with an event-driven arc
 ## Architecture
 
 The web server is built around several core components:
+
+## 2. Architecture Overview
+
+### Event Loop Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         Poller                               │
+│                    (Central Event Loop)                      │
+│                                                              │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │ poll() system call - monitors all file descriptors │    │
+│  └────────────────────────────────────────────────────┘    │
+│                           │                                  │
+│         ┌─────────────────┼─────────────────┐              │
+│         │                 │                 │               │
+│    ┌────▼────┐      ┌────▼─────┐     ┌────▼────┐          │
+│    │ Sockets │      │ Listeners│     │ Timers  │          │
+│    │ (TCP)   │      │ (Accept) │     │(Timeouts)│         │
+│    └────┬────┘      └────┬─────┘     └────┬────┘          │
+│         │                │                 │               │
+│    Callbacks        Callbacks         Callbacks            │
+│         │                │                 │               │
+└─────────┼────────────────┼─────────────────┼───────────────┘
+          │                │                 │
+     ┌────▼─────┐    ┌─────▼────┐      ┌────▼────┐
+     │HTTP Layer│    │WebSocket │      │  User   │
+     │ Routing  │    │ Protocol │      │ Timers  │
+     └──────────┘    └──────────┘      └─────────┘
+```
+
 
 ### Core Components
 
@@ -513,15 +544,63 @@ sequence.resume(); // Resume from where paused
 - `bool setInterval(uint32_t ms, Callback cb)` - Set repeating timer
 - `void stop()` - Stop the timer
 
-## Design Principles
+## Design Principles: The opinionated approach
 
 This web server follows specific design principles for performance and maintainability:
 
-- **No virtual functions** - Direct function calls for better performance
-- **Struct-based design** - All members are public, no encapsulation overhead
-- **Manual memory management** - Explicit control over resource allocation
-- **C-style error handling** - Return values instead of exceptions
-- **Platform-specific optimizations** - Native timer implementations for each OS
+**I made strong, opinionated choices and committed to them:**
+
+1. **No Virtual Functions - Ever**
+   - **Opinion**: Virtual functions are a performance tax for flexibility we don't need
+   - **Why**: Socket/Listener/Timer aren't related types that need polymorphism - they're different things that share a file descriptor
+   - **Result**: Zero vtable lookups, better cache locality, easier to reason about
+
+   ```cpp
+   // This is the entire polymorphism system:
+   enum class PollableType { SOCKET, LISTENER, TIMER };
+   struct Pollable {
+       PollableType type;  // That's it. Just switch on type.
+       // ...
+   };
+   ```
+
+2. **Everything is a Struct, Everything is Public**
+   - **Opinion**: Encapsulation hides nothing and costs CPU cycles
+   - **Instead**: `struct Socket`, `struct Listener`, `struct Poller` - all public
+   - **Why**: We're not building a library for untrusted users. We control the code. Direct access is honest.
+   - **Benefit**: Zero getter/setter overhead, debugger shows real memory layout, no surprises
+
+3. **Manual Memory Management**
+   - **Opinion**: Smart pointers are useful, but they encourage pervasive heap allocation. They:
+     - Scatter allocations across the heap
+     - Increase memory fragmentation
+     - Obscure allocation lifetime behind ownership semantics
+     - Solve local safety issues, not system-level memory behavior
+   - **Instead**: Explicit new/delete, object pools, and custom area allocators
+
+4. **Callbacks/Type erasure, Not Inheritance**
+   - **Opinion**: OOP inheritance is the wrong tool for event-driven systems
+   - **Instead**: `std::function` callbacks everywhere
+   - **Why**: Events are actions, not types. Just call the function.
+   - **Example**: `socket.onData = [](Socket& s, const BufferView& data) { ... };`
+   - **Clean**: No `virtual void onData()`, no `class MySocket : public Socket`
+
+
+
+### What This Means in Practice
+
+**Every abstraction must earn its place.**
+
+**This is anti-enterprise software.**
+
+No `AbstractFactoryBuilderProvider` interfaces. No `IConnectionHandler` base classes. No XML configuration. Just structs, functions, and clear logic.
+
+**The payoff:**
+
+- Read any file and understand it in minutes
+- No hidden behavior, no surprise allocations, no magic
+- Easy to profile, easy to optimize, easy to debug
+- Fast by default because there's nothing to slow it down
 
 ## Platform Support
 
